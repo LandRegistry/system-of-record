@@ -1,7 +1,14 @@
-sudo apt-get install -y python3-pip
+apt-get update
+
+apt-get install -y python3-pip
 
 pip3 install -r /vagrant/requirements.txt
 
-sudo apt-get install -Y gnupg2
+apt-get -y install gnupg2
 
 gem install foreman
+
+
+
+
+
