@@ -1,7 +1,8 @@
 from flask import Flask, request
-import gnupg
+from Crypto.PublicKey import RSA
 import os
 import json
+import jws
 
 app = Flask(__name__)
 
@@ -13,15 +14,12 @@ def check_status():
 def new_title_version():
     title = json.dumps(request.get_json())
 
-    gpg = gnupg.GPG(binary=os.environ.get("gpg_path"))
-
     #import keys
-    key_data = open('test_keys/test_private.key').read()
-    private_key = gpg.import_keys(key_data)
+    key_data = open('test_keys/test_private.pem').read()
+    key = RSA.importKey(key_data)
 
-    #sign title
-    sig = gpg.sign(title, default_key=private_key.fingerprints[0], passphrase="test passphrase")
+    header = { 'alg': 'RS256' }
 
-    print(sig.data)
+    sig = jws.sign(header, title, key)
 
     return str(sig)
