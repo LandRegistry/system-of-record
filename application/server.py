@@ -1,10 +1,11 @@
 from flask import Flask, request
 import os
+from flask.ext.sqlalchemy import SQLAlchemy
 import json
-from flask.ext.pymongo import PyMongo
 
 app = Flask(__name__)
-mongo = PyMongo(app)
+app.config.from_object(os.environ.get('SETTINGS'))
+db = SQLAlchemy(app)
 
 @app.route("/")
 def check_status():
