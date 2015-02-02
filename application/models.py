@@ -1,15 +1,12 @@
-
-from app import db
+from sqlalchemy import Column, Integer
+from application.server import db
 from sqlalchemy.dialects.postgresql import JSON
 
 
-class SignedTitles(db.model):
+class SignedTitles(db.Model):
 
     __tablename__ = 'sor'
 
+    id = Column(Integer, primary_key=True)
     sor = db.Column(JSON)
 
-    def __init__(self, sor):
-
-    def __repr__(self):
-        return 'hi'
