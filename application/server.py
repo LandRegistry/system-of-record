@@ -8,13 +8,6 @@ from flask import request
 def check_status():
     return "Everything is OK"
 
-@app.route("/testinsert")
-def test_insert():
-    json_data = {"key1": "value1", "key2": "value2"}
-    test_row = SignedTitles(json_data)
-    db.session.add(test_row)
-    db.session.commit()
-    return "Test row inserted"
 
 @app.route("/insert", methods=["POST"])
 def insert():
@@ -25,6 +18,6 @@ def insert():
     return "Test row inserted"
 
 
-#curl -X POST -d '{"titleno" : "DN1"}' -H "Content-Type: application/json" http://0.0.0.0:5000/insert
+
 
 
