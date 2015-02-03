@@ -8,7 +8,8 @@ Beta version of the system of record
 
 ##How to run
 
-```source ./run.sh
+```
+source ./run.sh
 ```
 
 ##How to insert a row
