@@ -2,6 +2,8 @@ from flask.ext.script import Manager
 from flask.ext.migrate import Migrate, MigrateCommand
 import os
 
+#IntelliJ considers the import below as 'not required'
+#However, without it, the model is not migrated.
 from application.models import *
 
 from application.server import app, db
