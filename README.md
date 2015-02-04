@@ -18,6 +18,12 @@ source ./run.sh
 curl -X POST -d '{"titleno" : "DN1"}' -H "Content-Type: application/json" http://192.168.50.5:5000/insert
 ```
 
+##How to check that the service is running:
+
+```
+curl http://192.168.50.5:5000/
+```
+
 ##How to update the database, if necessary
 
 ```
