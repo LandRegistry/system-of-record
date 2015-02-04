@@ -15,7 +15,7 @@ source ./run.sh
 ##How to insert a row
 
 ```
-curl -X POST -d '{"titleno" : "DN1"}' -H "Content-Type: application/json" http://0.0.0.0:5000/insert
+curl -X POST -d '{"titleno" : "DN1"}' -H "Content-Type: application/json" http://192.168.50.5:5000/insert
 ```
 
 ##How to update the database, if necessary
