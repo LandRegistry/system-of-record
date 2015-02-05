@@ -12,6 +12,18 @@ Puppet will setup everything with vagrant up.  However tables will need
 to be created, so run
 
 ```
+source ./environment.sh 
+```
+
+```
+python3 manage.py db init
+```
+
+```
+python3 manage.py db migrate
+```
+
+```
 python3 manage.py db upgrade
 ```
 
