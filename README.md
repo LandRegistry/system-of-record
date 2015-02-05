@@ -8,6 +8,15 @@ Beta version of the system of record
 
 ##How to run
 
+Puppet will setup everything with vagrant up.  However tables will need 
+to be created, so run
+
+```
+python3 manage.py db upgrade
+```
+
+Then type this to run the application
+
 ```
 source ./run.sh
 ```
@@ -28,6 +37,33 @@ curl http://192.168.50.5:5000/
 
 ```
 python3 manage.py db upgrade
+```
+
+##How to query the database with PSQL
+
+- Login to the centos virtual machine.
+- switch to root with 
+
+```
+sudo -i
+```
+
+- login to the system of record database with this
+
+```
+sudo -u postgres psql systemofrecord
+```
+
+describe tables with 
+
+```
+\d
+```
+
+To query, update, delete from a table use sql
+
+```
+select * from sor;
 ```
 
 
