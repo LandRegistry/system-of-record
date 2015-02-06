@@ -15,7 +15,7 @@ def insert():
     signed_title_json_object = SignedTitles(signed_title_json)
     db.session.add(signed_title_json_object)
     db.session.commit()
-    return "Test row inserted"
+    return "row inserted"
 
 
 
