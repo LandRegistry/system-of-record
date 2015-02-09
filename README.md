@@ -33,10 +33,18 @@ Then type this to run the application
 source ./run.sh
 ```
 
+##how to run tests
+In virtual machine
+
+```
+source ./run-test.sh
+```
+
+
 ##How to insert a row
 
 ```
-curl -X POST -d '{"titleno" : "DN1"}' -H "Content-Type: application/json" http://192.168.50.5:5000/insert
+curl -X POST -d '{"sig":"some_signed_data","data":{"titleno": "DN1"}}' -H "Content-Type: application/json" http://192.168.50.5:5000/insert
 ```
 
 ##How to check that the service is running:

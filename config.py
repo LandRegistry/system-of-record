@@ -6,3 +6,6 @@ class Config(object):
 
 class DevelopmentConfig(Config):
     DEBUG = True
+
+class TestConfig(Config):
+    DEBUG = True
