@@ -50,8 +50,19 @@ postgresql::server::role { 'vagrant':
   superuser => true,
 }
 
+postgresql::server::role { 'root':
+  password_hash => postgresql_password('root', 'root'),
+  superuser => true,
+}
+
 postgresql::server::database_grant { 'grant vagrant access to system of record':
   privilege => 'ALL',
   db        => 'systemofrecord',
   role      => 'vagrant',
+}
+
+postgresql::server::database_grant { 'grant root access to system of record':
+  privilege => 'ALL',
+  db        => 'systemofrecord',
+  role      => 'root',
 }

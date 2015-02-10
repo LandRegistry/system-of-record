@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
 
-source ./environment.sh
-python3 run.py
+if ["$1" == "-d"]
+then
+  source ./environment.sh
+  python3 run.py
+else
+  foremon start
+fi
