@@ -30,14 +30,14 @@ python3 manage.py db upgrade
 Then type this to run the application
 
 ```
-source ./run.sh
+./run.sh
 ```
 
 ##how to run tests
 In virtual machine
 
 ```
-source ./run-test.sh
+./test.sh
 ```
 
 
