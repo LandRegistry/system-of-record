@@ -1,8 +1,8 @@
 from application.models import SignedTitles
 from application import app
 from application import db
-import json
 from flask import request
+
 
 @app.route("/")
 def check_status():
