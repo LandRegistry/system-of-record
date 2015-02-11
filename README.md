@@ -30,7 +30,7 @@ python3 manage.py db upgrade
 Then type this to run the application
 
 ```
-source ./run.sh
+source ./run.sh -d
 ```
 
 ##how to run tests
