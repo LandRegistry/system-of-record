@@ -8,29 +8,20 @@ At the moment this service posts data to a postgres database.
 
 ##How to run
 
-Puppet will setup everything with vagrant up.  However tables will need 
-to be created, so run
-
 ```
-source ./environment.sh 
+vagrant up
 ```
 
 ```
-python3 manage.py db init
+vagrant ssh
 ```
 
 ```
-python3 manage.py db migrate
+cd /vagrant
 ```
 
 ```
-python3 manage.py db upgrade
-```
-
-Then type this to run the application
-
-```
-source ./run.sh -d
+./run.sh -d
 ```
 
 ##how to run tests
