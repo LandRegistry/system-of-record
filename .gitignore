@@ -60,6 +60,3 @@ target/
 #intellij
 *.iml
 *.idea
-
-#migrations.  We can add these again, when the table format is decided.
-migrations/
