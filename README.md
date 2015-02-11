@@ -1,5 +1,5 @@
 # system-of-record
-Beta version of the system of record
+At the moment this service posts data to a postgres database.
 
 ##requirements:
 - postgres
@@ -37,7 +37,7 @@ source ./run.sh -d
 In virtual machine
 
 ```
-source ./run-test.sh
+./test.sh
 ```
 
 
