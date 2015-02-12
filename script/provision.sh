@@ -13,6 +13,8 @@ puppet module install puppetlabs-postgresql
 #------------install and configure postgres
 puppet apply /vagrant/manifests/postgres.pp
 
+gem install --no-ri --no-rdoc foreman
+
 cd /vagrant
 
 source environment.sh

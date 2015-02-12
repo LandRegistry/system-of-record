@@ -5,5 +5,5 @@ then
   source ./environment.sh
   python3 run.py
 else
-  foremon start
+  foreman start
 fi
