@@ -7,7 +7,7 @@ VAGRANTFILE_API_VERSION = "2"
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.box = "landregistry/centos-beta"
-  config.vm.network "private_network", ip: "192.168.50.5"
   config.vm.provision :shell, :path => 'script/provision.sh'
+  config.vm.network "forwarded_port", guest: 5001, host: 5001
 
 end
