@@ -17,6 +17,8 @@ def check_status():
 #     db.session.commit()
 #     return "row inserted"
 
+#Add a route to return the json for a title so that the tests can confirm.
+
 
 
 
