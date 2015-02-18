@@ -33,15 +33,16 @@ In virtual machine
 
 
 ##How to insert a row
+Note:  Use 0.0.0.0 when running from host.  Use 10.0.2.2 when calling from another VM.
 
 ```
-curl -X POST -d '{"sig":"some_signed_data","data":{"titleno": "DN1"}}' -H "Content-Type: application/json" http://192.168.50.5:5000/insert
+curl -X POST -d '{"sig":"some_signed_data","data":{"titleno": "DN1"}}' -H "Content-Type: application/json" http://10.0.2.2:5001/insert
 ```
 
 ##How to check that the service is running:
 
 ```
-curl http://192.168.50.5:5000/
+curl http://10.0.2.2:5001/
 ```
 
 ##How to update the database, if necessary
