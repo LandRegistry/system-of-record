@@ -8,6 +8,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.box = "landregistry/centos-beta"
   config.vm.network "private_network", ip: "192.168.50.5"
-  config.vm.provision :shell, :path => 'script/provision.sh'
+  config.vm.provision :shell, :path => 'scripts/provision.sh'
 
 end
