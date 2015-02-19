@@ -1,5 +1,5 @@
 # system-of-record tester
-Checks the system of record for an entry.
+Checks the system of record for an entry.  Should never be deployed to production.
 
 Used by acceptance tests
 
@@ -7,7 +7,7 @@ Used by acceptance tests
 - python 3
 - python modules listed in requirements.txt
 
-##How to run
+##How to use the virtual environment
 
 ```
 vagrant up
@@ -26,7 +26,25 @@ cd /vagrant
 ```
 
 
-##How to use
+##Examples curl commands
+
+To find the number of rows on the system of record
+
+```
+curl http://0.0.0.0:5002/count
+```
+
+Get the data from the last record.
+
+```
+curl http://0.0.0.0:5002/getlastsignature
+```
+
+Delete the last record.
+
+```
+curl http://0.0.0.0:5002/deletelastrecord
+```
 
 
 ##How to query the database with PSQL
