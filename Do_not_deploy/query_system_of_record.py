@@ -25,7 +25,7 @@ def delete_last_record():
     return 'deleted'
 
 
-@app.route("/getlastsignature")
+@app.route("/getlastrecord")
 def get_last_signature():
     last_record = get_last_record()
     #convert the sor dictionary to a string
