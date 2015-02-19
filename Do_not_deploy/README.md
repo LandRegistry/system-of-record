@@ -37,7 +37,7 @@ curl http://0.0.0.0:5002/count
 Get the data from the last record.
 
 ```
-curl http://0.0.0.0:5002/getlastsignature
+curl http://0.0.0.0:5002/getlastrecord
 ```
 
 Delete the last record.
