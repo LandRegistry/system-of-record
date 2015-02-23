@@ -31,6 +31,27 @@ In virtual machine
 ./test.sh
 ```
 
+##How to run the tester service
+
+```
+cd /vagrant
+./run-tester.sh -d
+```
+###To count the rows on postgres
+```
+curl http://127.0.0.1:5002/count
+```
+
+###To get the data for the last row on postgres
+```
+curl http://127.0.0.1:5002/getlastrecord
+```
+
+###To delete the last row on postgres
+```
+curl http://127.0.0.1:5002/deletelastrecord
+```
+
 
 ##How to insert a row
 Note:  Use 0.0.0.0 when running from host.  Use 10.0.2.2 when calling from another VM.
