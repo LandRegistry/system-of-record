@@ -1,4 +1,4 @@
 class { '::rabbitmq':
-  service_manage    => false,
+  service_manage    => true,
   port              => '5672',
 }
