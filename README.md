@@ -3,6 +3,7 @@ At the moment this service posts data to a postgres database.
 
 ##requirements:
 - postgres
+- rabbitmq
 - python 3
 - python modules listed in requirements.txt
 
@@ -64,6 +65,25 @@ curl -X POST -d '{"sig":"some_signed_data","data":{"titleno": "DN1"}}' -H "Conte
 
 ```
 curl http://10.0.2.2:5001/
+```
+
+##How to manage rabbitmq:
+Status of the server
+
+```
+service rabbitmq-server status
+```
+
+Stop the server
+
+```
+service rabbitmq-server stop
+```
+
+Start the server
+
+```
+service rabbitmq-server start
 ```
 
 ##How to update the database, if necessary

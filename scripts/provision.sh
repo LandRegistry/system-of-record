@@ -13,6 +13,15 @@ puppet module install puppetlabs-postgresql
 #------------install and configure postgres
 puppet apply /vagrant/manifests/postgres.pp
 
+
+puppet module install garethr-erlang
+
+puppet apply /vagrant/manifests/erlang.pp
+
+puppet module install puppetlabs-rabbitmq
+
+puppet apply /vagrant/manifests/rabbit.pp
+
 gem install --no-ri --no-rdoc foreman
 
 cd /vagrant
