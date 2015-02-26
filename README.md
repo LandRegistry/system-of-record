@@ -53,6 +53,10 @@ curl http://127.0.0.1:5002/getlastrecord
 curl http://127.0.0.1:5002/deletelastrecord
 ```
 
+###To get and remove the last message from RabbitMQ
+```
+curl http://127.0.0.1:5002/getlastqueuemessage
+```
 
 ##How to insert a row
 Note:  Use 0.0.0.0 when running from host.  Use 10.0.2.2 when calling from another VM.
@@ -84,6 +88,12 @@ Start the server
 
 ```
 service rabbitmq-server start
+```
+
+List queues, and show queue detail
+
+```
+rabbitmqadmin list queues
 ```
 
 ##How to update the database, if necessary
