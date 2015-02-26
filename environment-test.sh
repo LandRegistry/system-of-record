@@ -1,2 +1,1 @@
-export SETTINGS="config.TestConfig"
-export DATABASE_URL=""
+export SETTINGS="config.DevelopmentConfig"
