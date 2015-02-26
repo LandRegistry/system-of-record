@@ -2,10 +2,17 @@ import os
 
 class Config(object):
     DEBUG = False
-    SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL']
 
 class DevelopmentConfig(Config):
+    SQLALCHEMY_DATABASE_URI = 'postgresql://localhost/systemofrecord'
     DEBUG = True
 
-class TestConfig(Config):
+class PreviewConfig(Config):
+    SQLALCHEMY_DATABASE_URI = 'postgresql://localhost/systemofrecord'
     DEBUG = True
+
+class PreproductionConfig(Config):
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL','')
+
+class ProductionConfig(Config):
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL','')
