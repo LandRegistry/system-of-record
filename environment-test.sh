@@ -1,3 +1,5 @@
 export SETTINGS="config.TestConfig"
 export DATABASE_URL=""
-export RP_HOSTNAME="amqp://guest:guest@localhost:5672//"
+export RABBIT_ENDPOINT=""
+export RABBIT_QUEUE=""
+export RABBIT_ROUTING_KEY=""

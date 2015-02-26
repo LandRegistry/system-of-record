@@ -23,10 +23,13 @@ def insert():
     # By default messages sent to exchanges are persistent (delivery_mode=2),
     # and queues and exchanges are durable.
     exchange = Exchange()
-    connection = Connection(app.config['RP_HOSTNAME'])
+    connection = Connection(app.config['RABBIT_ENDPOINT'])
 
     # Create a queue bound to the connection.
-    queue = Queue('system_of_record', exchange, routing_key='system_of_record')(connection)
+    # queue = Queue('system_of_record', exchange, routing_key='system_of_record')(connection)
+    queue = Queue(app.config['RABBIT_QUEUE'],
+                  exchange,
+                  routing_key=app.config['RABBIT_ROUTING_KEY'])(connection)
     queue.declare()
 
     # Producers are used to publish messages.
