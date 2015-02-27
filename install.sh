@@ -5,6 +5,9 @@ cd $dir
 
 virtualenv -p python2 ~/venvs/system-of-record
 source ~/venvs/system-of-record/bin/activate
+if [ -d /usr/pgsql-9.3/bin ]; then
+  export PATH=$PATH:/usr/pgsql-9.3/bin
+fi
 pip install -r requirements.txt
 
 #Set environment variable in supervisord according to deploying environment (default to development)
