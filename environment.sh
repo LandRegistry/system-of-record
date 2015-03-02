@@ -1,5 +1,2 @@
 export SETTINGS="config.DevelopmentConfig"
-export DATABASE_URL="postgresql://localhost/systemofrecord"
-export RABBIT_ENDPOINT="amqp://guest:guest@localhost:5672//"
-export RABBIT_QUEUE="system_of_record"
-export RABBIT_ROUTING_KEY="system_of_record"
+

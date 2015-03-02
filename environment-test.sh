@@ -1,5 +1,1 @@
-export SETTINGS="config.TestConfig"
-export DATABASE_URL=""
-export RABBIT_ENDPOINT=""
-export RABBIT_QUEUE=""
-export RABBIT_ROUTING_KEY=""
+export SETTINGS="config.DevelopmentConfig"

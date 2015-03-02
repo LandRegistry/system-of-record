@@ -2,13 +2,23 @@ import os
 
 class Config(object):
     DEBUG = False
-    SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL']
-    RABBIT_ENDPOINT = os.environ['RABBIT_ENDPOINT']
-    RABBIT_QUEUE = os.environ['RABBIT_QUEUE']
-    RABBIT_ROUTING_KEY = os.environ['RABBIT_ROUTING_KEY']
 
 class DevelopmentConfig(Config):
+    SQLALCHEMY_DATABASE_URI = 'postgresql://localhost/systemofrecord'
+    RABBIT_ENDPOINT = 'amqp://guest:guest@localhost:5672//'
+    RABBIT_QUEUE = 'system_of_record'
+    RABBIT_ROUTING_KEY = 'system_of_record'
     DEBUG = True
 
-class TestConfig(Config):
+class PreviewConfig(Config):
+    SQLALCHEMY_DATABASE_URI = 'postgresql://localhost/systemofrecord'
+    RABBIT_ENDPOINT = 'amqp://guest:guest@localhost:5672//'
+    RABBIT_QUEUE = 'system_of_record'
+    RABBIT_ROUTING_KEY = 'system_of_record'
     DEBUG = True
+
+class PreproductionConfig(Config):
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL','')
+
+class ProductionConfig(Config):
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL','')
