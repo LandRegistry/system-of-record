@@ -3,6 +3,7 @@ from application import app
 from application import db
 from flask import request
 import json
+from kombu import Connection, Exchange, Queue, Consumer, eventloop
 
 
 
@@ -48,5 +49,27 @@ def query_nested_stuff_like_this():
 def query_by_an_id_like_this(the_id):
     athing = db.session.query(SignedTitles).get(the_id)
     return athing
+
+
+@app.route("/getlastqueuemessage")
+def get_last_queue_message():
+    #: By default messages sent to exchanges are persistent (delivery_mode=2),
+    #: and queues and exchanges are durable.
+    exchange = Exchange()
+    connection = Connection('amqp://guest:guest@localhost:5672//')
+
+    # Create/access a queue bound to the connection.
+    queue = Queue('system_of_record', exchange, routing_key='system_of_record')(connection)
+    queue.declare()
+
+    message = queue.get()
+
+    if message:
+        signature = message.body
+        message.ack() #acknowledges message, ensuring its removal.
+        return signature
+
+    else:
+        return "no message"
 
 
