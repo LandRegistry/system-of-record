@@ -51,8 +51,8 @@ def query_by_an_id_like_this(the_id):
     return athing
 
 
-@app.route("/getlastqueuemessage")
-def get_last_queue_message():
+@app.route("/getlastincomingqueuemessage")
+def get_last_incoming_queue_message():
     #: By default messages sent to exchanges are persistent (delivery_mode=2),
     #: and queues and exchanges are durable.
     exchange = Exchange()
@@ -60,6 +60,28 @@ def get_last_queue_message():
 
     # Create/access a queue bound to the connection.
     queue = Queue('system_of_record', exchange, routing_key='system_of_record')(connection)
+    queue.declare()
+
+    message = queue.get()
+
+    if message:
+        signature = message.body
+        message.ack() #acknowledges message, ensuring its removal.
+        return signature
+
+    else:
+        return "no message"
+
+
+@app.route("/getlastoutgoingqueuemessage")
+def get_last_outgoing_queue_message():
+    #: By default messages sent to exchanges are persistent (delivery_mode=2),
+    #: and queues and exchanges are durable.
+    exchange = Exchange()
+    connection = Connection('amqp://guest:guest@localhost:5672//')
+
+    # Create/access a queue bound to the connection.
+    queue = Queue('OUTGOING_QUEUE', exchange, routing_key='OUTGOING_QUEUE')(connection)
     queue.declare()
 
     message = queue.get()
