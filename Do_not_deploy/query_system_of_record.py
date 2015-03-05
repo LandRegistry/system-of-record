@@ -51,15 +51,18 @@ def query_by_an_id_like_this(the_id):
     return athing
 
 
-@app.route("/getlastqueuemessage")
-def get_last_queue_message():
+@app.route("/getnextqueuemessage")
+#Gets the next message from target queue.  Returns the signed JSON.
+def get_last_incoming_queue_message():
     #: By default messages sent to exchanges are persistent (delivery_mode=2),
     #: and queues and exchanges are durable.
     exchange = Exchange()
-    connection = Connection('amqp://guest:guest@localhost:5672//')
+    connection = Connection(app.config['RABBIT_ENDPOINT'])
 
     # Create/access a queue bound to the connection.
-    queue = Queue('system_of_record', exchange, routing_key='system_of_record')(connection)
+    queue = Queue(app.config['RABBIT_QUEUE'],
+                  exchange,
+                  routing_key=app.config['RABBIT_ROUTING_KEY'])(connection)
     queue.declare()
 
     message = queue.get()
@@ -71,5 +74,4 @@ def get_last_queue_message():
 
     else:
         return "no message"
-
 
