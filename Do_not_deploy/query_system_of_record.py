@@ -60,9 +60,9 @@ def get_last_incoming_queue_message():
     connection = Connection(app.config['RABBIT_ENDPOINT'])
 
     # Create/access a queue bound to the connection.
-    queue = Queue(app.config['RABBIT_QUEUE'],
+    queue = Queue(app.config['REGISTER_PUBLISHER_QUEUE_DETAILS'],
                   exchange,
-                  routing_key=app.config['RABBIT_ROUTING_KEY'])(connection)
+                  routing_key=app.config['REGISTER_PUBLISHER_QUEUE_DETAILS'])(connection)
     queue.declare()
 
     message = queue.get()
