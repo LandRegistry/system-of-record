@@ -1,10 +1,7 @@
 from application.models import SignedTitles
-from application import app
-from application import db
-from flask import request
+from Do_not_deploy import app
+from Do_not_deploy import db
 import json
-from kombu import Connection, Exchange, Queue, Consumer, eventloop
-
 
 
 @app.route("/")
@@ -49,29 +46,3 @@ def query_nested_stuff_like_this():
 def query_by_an_id_like_this(the_id):
     athing = db.session.query(SignedTitles).get(the_id)
     return athing
-
-
-@app.route("/getnextqueuemessage")
-#Gets the next message from target queue.  Returns the signed JSON.
-def get_last_incoming_queue_message():
-    #: By default messages sent to exchanges are persistent (delivery_mode=2),
-    #: and queues and exchanges are durable.
-    exchange = Exchange()
-    connection = Connection(app.config['RABBIT_ENDPOINT'])
-
-    # Create/access a queue bound to the connection.
-    queue = Queue(app.config['REGISTER_PUBLISHER_QUEUE_DETAILS'],
-                  exchange,
-                  routing_key=app.config['REGISTER_PUBLISHER_QUEUE_DETAILS'])(connection)
-    queue.declare()
-
-    message = queue.get()
-
-    if message:
-        signature = message.body
-        message.ack() #acknowledges message, ensuring its removal.
-        return signature
-
-    else:
-        return "no message"
-
