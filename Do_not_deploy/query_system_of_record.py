@@ -35,7 +35,7 @@ def get_last_signature():
         sor_as_string = json.dumps(last_record.sor)
         return sor_as_string
     except AttributeError:
-        return "No row found"
+        return "No row found", 404
 
 @app.route("/deleteallrecords")
 def delete_all_records():
