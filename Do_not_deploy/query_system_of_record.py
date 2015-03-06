@@ -1,6 +1,7 @@
 from application.models import SignedTitles
 from Do_not_deploy import app
 from Do_not_deploy import db
+import logging
 import json
 
 
@@ -16,19 +17,32 @@ def count_rows():
 
 
 @app.route("/deletelastrecord")
+#Raises SQLAlchemy UnmappedInstanceError if no row found
 def delete_last_record():
-    last_record = get_last_record()
-    db.session.delete(last_record)
-    db.session.commit()
-    return 'deleted'
-
+    try:
+        last_record = get_last_record()
+        db.session.delete(last_record)
+        db.session.commit()
+        return 'deleted'
+    except:
+        return 'failed'
 
 @app.route("/getlastrecord")
 def get_last_signature():
-    last_record = get_last_record()
-    #convert the sor dictionary to a string
-    sor_as_string = json.dumps(last_record.sor)
-    return sor_as_string
+    try:
+        last_record = get_last_record()
+        #convert the sor dictionary to a string
+        sor_as_string = json.dumps(last_record.sor)
+        return sor_as_string
+    except AttributeError:
+        return "No row found"
+
+@app.route("/deleteallrecords")
+def delete_all_records():
+    while True:
+        if delete_last_record() != 'deleted':
+            break
+    return 'deleted', 202
 
 
 def get_last_record():

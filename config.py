@@ -9,7 +9,6 @@ class DevelopmentConfig(Config):
     RABBIT_QUEUE = 'system_of_record'
     RABBIT_ROUTING_KEY = 'system_of_record'
     DEBUG = True
-    REGISTER_PUBLISHER_QUEUE_DETAILS = 'OUTGOING_QUEUE'
 
 class PreviewConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'postgresql://localhost/systemofrecord'
@@ -17,7 +16,6 @@ class PreviewConfig(Config):
     RABBIT_QUEUE = 'system_of_record'
     RABBIT_ROUTING_KEY = 'system_of_record'
     DEBUG = True
-    REGISTER_PUBLISHER_QUEUE_DETAILS = 'OUTGOING_QUEUE'
 
 class PreproductionConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL','')
