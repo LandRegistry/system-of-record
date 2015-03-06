@@ -100,6 +100,18 @@ List queues, and show queue detail
 rabbitmqadmin list queues
 ```
 
+or
+
+```
+sudo rabbitmqctl list_queues
+```
+
+put a message on the queue:
+
+```
+rabbitmqadmin publish exchange=amq.default routing_key=system_of_record payload="hello, world"
+```
+
 ##How to update the database, if necessary
 
 ```
