@@ -22,6 +22,10 @@ cd /vagrant
 ```
 
 ```
+source ~/venvs/system-of-record/bin/activate
+```
+
+```
 ./run.sh -d
 ```
 
@@ -53,18 +57,22 @@ curl http://127.0.0.1:5002/getlastrecord
 curl http://127.0.0.1:5002/deletelastrecord
 ```
 
+###To get and remove the last message from RabbitMQ
+```
+curl http://127.0.0.1:5002/getnextqueuemessage
+```
 
 ##How to insert a row
 Note:  Use 0.0.0.0 when running from host.  Use 10.0.2.2 when calling from another VM.
 
 ```
-curl -X POST -d '{"sig":"some_signed_data","data":{"titleno": "DN1"}}' -H "Content-Type: application/json" http://10.0.2.2:5001/insert
+curl -X POST -d '{"sig":"some_signed_data","data":{"titleno": "DN1"}}' -H "Content-Type: application/json" http://127.0.0.1:5001/insert
 ```
 
 ##How to check that the service is running:
 
 ```
-curl http://10.0.2.2:5001/
+curl http://127.0.0.1:5001/
 ```
 
 ##How to manage rabbitmq:
@@ -84,6 +92,24 @@ Start the server
 
 ```
 service rabbitmq-server start
+```
+
+List queues, and show queue detail
+
+```
+rabbitmqadmin list queues
+```
+
+or
+
+```
+sudo rabbitmqctl list_queues
+```
+
+put a message on the queue:
+
+```
+rabbitmqadmin publish exchange=amq.default routing_key=system_of_record payload="hello, world"
 ```
 
 ##How to update the database, if necessary

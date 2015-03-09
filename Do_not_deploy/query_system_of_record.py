@@ -1,9 +1,8 @@
 from application.models import SignedTitles
-from application import app
-from application import db
-from flask import request
+from Do_not_deploy import app
+from Do_not_deploy import db
+import logging
 import json
-
 
 
 @app.route("/")
@@ -18,19 +17,32 @@ def count_rows():
 
 
 @app.route("/deletelastrecord")
+#Raises SQLAlchemy UnmappedInstanceError if no row found
 def delete_last_record():
-    last_record = get_last_record()
-    db.session.delete(last_record)
-    db.session.commit()
-    return 'deleted'
-
+    try:
+        last_record = get_last_record()
+        db.session.delete(last_record)
+        db.session.commit()
+        return 'deleted'
+    except:
+        return 'failed'
 
 @app.route("/getlastrecord")
 def get_last_signature():
-    last_record = get_last_record()
-    #convert the sor dictionary to a string
-    sor_as_string = json.dumps(last_record.sor)
-    return sor_as_string
+    try:
+        last_record = get_last_record()
+        #convert the sor dictionary to a string
+        sor_as_string = json.dumps(last_record.sor)
+        return sor_as_string
+    except AttributeError:
+        return "No row found", 404
+
+@app.route("/deleteallrecords")
+def delete_all_records():
+    while True:
+        if delete_last_record() != 'deleted':
+            break
+    return 'deleted', 202
 
 
 def get_last_record():
@@ -48,5 +60,3 @@ def query_nested_stuff_like_this():
 def query_by_an_id_like_this(the_id):
     athing = db.session.query(SignedTitles).get(the_id)
     return athing
-
-
