@@ -42,7 +42,7 @@ class { 'postgresql::server::contrib':
 
 postgresql::server::db { 'systemofrecord':
   user     => 'systemofrecord',
-  password => postgresql_password('systemofrecord', 'password'),
+  password => 'md511c5a6395e27555ef43eb7b05c76d7c1',
 }
 
 postgresql::server::role { 'vagrant':

@@ -4,11 +4,12 @@ class Config(object):
     DEBUG = False
 
 class DevelopmentConfig(Config):
-    SQLALCHEMY_DATABASE_URI = 'postgresql://localhost/systemofrecord'
+    # format is dialect+driver://username:password@host:port/database
+    SQLALCHEMY_DATABASE_URI = 'postgresql://systemofrecord:systemofrecord@localhost/systemofrecord'
     DEBUG = True
 
 class PreviewConfig(Config):
-    SQLALCHEMY_DATABASE_URI = 'postgresql://localhost/systemofrecord'
+    SQLALCHEMY_DATABASE_URI = 'postgresql://systemofrecord:systemofrecord@localhost/systemofrecord'
     DEBUG = True
 
 class PreproductionConfig(Config):
