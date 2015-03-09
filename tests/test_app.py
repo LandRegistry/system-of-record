@@ -30,7 +30,7 @@ class TestSequenceFunctions(unittest.TestCase):
 
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
-        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.status, '201 CREATED')
         self.assertEqual(response.data.decode("utf-8"), 'row inserted')
 
 
@@ -47,7 +47,6 @@ class TestSequenceFunctions(unittest.TestCase):
 
     def pretend_db_session_add(self):
         app.logger.info('pretend_db_session_add called')
-
 
     def pretend_db_session_commit(self):
         app.logger.info('pretend_db_session_commit called')
