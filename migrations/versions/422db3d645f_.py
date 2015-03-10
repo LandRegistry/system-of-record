@@ -21,6 +21,8 @@ def upgrade():
     sa.Column('sor', postgresql.JSON(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
+    #Create unique index on table sor, use column sor and key 'sig'
+    op.execute("CREATE UNIQUE INDEX ON sor((sor->>'sig'))")
     ### end Alembic commands ###
 
 
