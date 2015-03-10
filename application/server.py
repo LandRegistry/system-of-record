@@ -4,6 +4,8 @@ from application import db
 from flask import request
 from kombu import Connection, Producer, Exchange, Queue
 import traceback
+from sqlalchemy.exc import IntegrityError
+
 
 @app.route("/")
 def check_status():
@@ -20,9 +22,14 @@ def insert():
         #Start database transaction with 'add'.  Commit if all well.
         db.session.add(signed_title_json_object)
         publish_json_to_queue(request.get_json())
-
         db.session.commit()
-    except Exception as err:
+
+    except IntegrityError:
+        db.session.rollback;
+        app.logger.error(traceback.format_exc()) #logs the call stack
+        return 'Integrity error. Check that signature is unique', 500
+
+    except Exception:
         db.session.rollback;
         app.logger.error(traceback.format_exc()) #logs the call stack
         return 'Service failed to insert', 500
