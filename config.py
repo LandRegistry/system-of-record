@@ -4,7 +4,8 @@ class Config(object):
     DEBUG = False
 
 class DevelopmentConfig(Config):
-    SQLALCHEMY_DATABASE_URI = 'postgresql://localhost/systemofrecord'
+    # format is dialect+driver://username:password@host:port/database
+    SQLALCHEMY_DATABASE_URI = 'postgresql://systemofrecord:systemofrecord@localhost/systemofrecord'
     RABBIT_ENDPOINT = 'amqp://guest:guest@localhost:5672//'
     RABBIT_QUEUE = 'system_of_record'
     RABBIT_ROUTING_KEY = 'system_of_record'
@@ -19,7 +20,7 @@ class UnitTestConfig(Config):
     DEBUG = True
 
 class PreviewConfig(Config):
-    SQLALCHEMY_DATABASE_URI = 'postgresql://localhost/systemofrecord'
+    SQLALCHEMY_DATABASE_URI = 'postgresql://systemofrecord:systemofrecord@localhost/systemofrecord'
     RABBIT_ENDPOINT = 'amqp://guest:guest@localhost:5672//'
     RABBIT_QUEUE = 'system_of_record'
     RABBIT_ROUTING_KEY = 'system_of_record'
