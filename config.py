@@ -27,7 +27,13 @@ class PreviewConfig(Config):
     DEBUG = True
 
 class PreproductionConfig(Config):
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL','')
+    SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI','')
+    RABBIT_ENDPOINT = os.getenv('RABBIT_ENDPOINT','')
+    RABBIT_QUEUE = os.getenv('RABBIT_QUEUE','')
+    RABBIT_ROUTING_KEY = os.getenv('RABBIT_ROUTING_KEY','')
 
 class ProductionConfig(Config):
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL','')
+    SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI','')
+    RABBIT_ENDPOINT = os.getenv('RABBIT_ENDPOINT','')
+    RABBIT_QUEUE = os.getenv('RABBIT_QUEUE','')
+    RABBIT_ROUTING_KEY = os.getenv('RABBIT_ROUTING_KEY','')

@@ -13,26 +13,40 @@ pip install -r requirements.txt
 #Set environment variable in supervisord according to deploying environment (default to development)
 case "$DEPLOY_ENVIRONMENT" in
   development)
-  SETTINGS="config.DevelopmentConfig"
+  SUPERVISOR_ENV="SETTINGS=\"config.DevelopmentConfig\""
   ;;
   test)
-  SETTINGS="config.PreviewConfig"
+  SUPERVISOR_ENV="SETTINGS=\"config.PreviewConfig\""
   ;;
   preproduction)
-  SETTINGS="config.PreproductionConfig"
+  SUPERVISOR_ENV="SETTINGS=\"config.PreproductionConfig\""
   ;;
   production)
-  SETTINGS="config.ProductionConfig"
+  SUPERVISOR_ENV="SETTINGS=\"config.ProductionConfig\""
   ;;
   *)
-  SETTINGS="config.DevelopmentConfig"
+  SUPERVISOR_ENV="SETTINGS=\"config.DevelopmentConfig\""
   ;;
 esac
 
-#Set this environment variable for python db migrations
-export SETTINGS=$SETTINGS
+#Run manage with appropriate SETTINGS variable from above
+eval `echo $SUPERVISOR_ENV` python manage.py db upgrade
 
-python manage.py db upgrade
+if [ -n "$SQLALCHEMY_DATABASE_URI" ]; then
+  SUPERVISOR_ENV="$SUPERVISOR_ENV,SQLALCHEMY_DATABASE_URI=\"$SQLALCHEMY_DATABASE_URI\""
+fi 
+
+if [ -n "$RABBIT_ENDPOINT" ]; then
+  SUPERVISOR_ENV="$SUPERVISOR_ENV,RABBIT_ENDPOINT=\"$RABBIT_ENDPOINT\""
+fi 
+
+if [ -n "$RABBIT_QUEUE" ]; then
+  SUPERVISOR_ENV="$SUPERVISOR_ENV,RABBIT_QUEUE=\"$RABBIT_QUEUE\""
+fi 
+
+if [ -n "$RABBIT_ROUTING_KEY" ]; then
+  SUPERVISOR_ENV="$SUPERVISOR_ENV,RABBIT_ROUTING_KEY=\"$RABBIT_ROUTING_KEY\""
+fi 
 
 echo "Adding system of record to supervisord..."
 cat > /etc/supervisord.d/systemofrecord.ini << EOF
@@ -42,5 +56,5 @@ directory=$dir
 autostart=true
 autorestart=true
 user=$USER
-environment=SETTINGS="$SETTINGS"
+environment=$SUPERVISOR_ENV
 EOF
