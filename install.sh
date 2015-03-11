@@ -30,7 +30,7 @@ case "$DEPLOY_ENVIRONMENT" in
 esac
 
 #Set this environment variable for python db migrations
-export eval $SUPERVISOR_ENV
+export eval "$SUPERVISOR_ENV"
 
 python manage.py db upgrade
 
