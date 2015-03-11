@@ -29,10 +29,8 @@ case "$DEPLOY_ENVIRONMENT" in
   ;;
 esac
 
-#Set this environment variable for python db migrations
-export eval "$SUPERVISOR_ENV"
-
-python manage.py db upgrade
+#Run manage with appropriate SETTINGS variable from above
+eval `eval echo $SUPERVISOR_ENV` python manage.py db upgrade
 
 if [ -n "$SQLALCHEMY_DATABASE_URI" ]; then
   SUPERVISOR_ENV="$SUPERVISOR_ENV,SQLALCHEMY_DATABASE_URI=\"$SQLALCHEMY_DATABASE_URI\""
