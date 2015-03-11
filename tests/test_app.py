@@ -1,6 +1,6 @@
 import unittest
 from application import server
-from application.server import app, db
+from application.server import app, publish_json_to_queue
 import os
 import mock
 
@@ -12,6 +12,11 @@ class TestSequenceFunctions(unittest.TestCase):
     def setUp(self):
         app.config.from_object(os.environ.get('SETTINGS'))
         self.app = server.app.test_client()
+
+    def test_config_variables_blank(self):
+        self.assertEqual(app.config['RABBIT_ENDPOINT'], '')
+        self.assertEqual(app.config['RABBIT_QUEUE'], '')
+        self.assertEqual(app.config['RABBIT_ROUTING_KEY'], '')
 
 
     def test_server_code(self):
@@ -30,7 +35,7 @@ class TestSequenceFunctions(unittest.TestCase):
 
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
-        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.status, '201 CREATED')
         self.assertEqual(response.data.decode("utf-8"), 'row inserted')
 
 
@@ -48,8 +53,10 @@ class TestSequenceFunctions(unittest.TestCase):
     def pretend_db_session_add(self):
         app.logger.info('pretend_db_session_add called')
 
-
     def pretend_db_session_commit(self):
         app.logger.info('pretend_db_session_commit called')
+
+    def test_publish_to_queue(self):
+        publish_json_to_queue({"akey":"aValue"})
 
 

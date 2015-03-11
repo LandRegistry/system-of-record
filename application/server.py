@@ -3,6 +3,8 @@ from application import app
 from application import db
 from flask import request
 from kombu import Connection, Producer, Exchange, Queue
+import traceback
+from sqlalchemy.exc import IntegrityError
 
 
 @app.route("/")
@@ -16,9 +18,26 @@ def insert():
     signed_title_json_object = SignedTitles(signed_title_json)
 
     # Write to database
-    db.session.add(signed_title_json_object)
-    db.session.commit()
+    try:
+        #Start database transaction with 'add'.  Commit if all well.
+        db.session.add(signed_title_json_object)
+        publish_json_to_queue(request.get_json())
+        db.session.commit()
 
+    except IntegrityError:
+        db.session.rollback;
+        app.logger.error(traceback.format_exc()) #logs the call stack
+        return 'Integrity error. Check that signature is unique', 500
+
+    except Exception:
+        db.session.rollback;
+        app.logger.error(traceback.format_exc()) #logs the call stack
+        return 'Service failed to insert', 500
+
+    return "row inserted", 201
+
+
+def publish_json_to_queue(json_string):
     # Next write to queue for consumption by register publisher
     # By default messages sent to exchanges are persistent (delivery_mode=2),
     # and queues and exchanges are durable.
@@ -34,10 +53,7 @@ def insert():
 
     # Producers are used to publish messages.
     producer = Producer(connection)
-    producer.publish(request.get_json(), exchange=exchange, routing_key=queue.routing_key,  serializer='json')
-
-    return "row inserted"
-
+    producer.publish(json_string, exchange=exchange, routing_key=queue.routing_key,  serializer='json')
 
 
 

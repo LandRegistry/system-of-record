@@ -21,7 +21,6 @@ def upgrade():
     sa.Column('sor', postgresql.JSON(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
-    ### end Alembic commands ###
 
 
 def downgrade():
