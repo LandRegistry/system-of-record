@@ -15,6 +15,7 @@ psycopg2==2.5.4
 mock==1.0.1
 pytest==2.6.4
 pytest-cov==1.8.1
+PyYAML==3.11
 six==1.9.0
 kombu==3.0.24
 stopit==1.1.0

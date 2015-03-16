@@ -10,6 +10,11 @@ if [ -d /usr/pgsql-9.3/bin ]; then
 fi
 pip install -r requirements.txt
 
+#Create the logging directory as it is required by default
+if [ ! -d $dir/logs ]; then
+	mkdir $dir/logs
+fi
+
 #Set environment variable in supervisord according to deploying environment (default to development)
 case "$DEPLOY_ENVIRONMENT" in
   development)
@@ -34,19 +39,19 @@ eval `echo $SUPERVISOR_ENV` python manage.py db upgrade
 
 if [ -n "$SQLALCHEMY_DATABASE_URI" ]; then
   SUPERVISOR_ENV="$SUPERVISOR_ENV,SQLALCHEMY_DATABASE_URI=\"$SQLALCHEMY_DATABASE_URI\""
-fi 
+fi
 
 if [ -n "$RABBIT_ENDPOINT" ]; then
   SUPERVISOR_ENV="$SUPERVISOR_ENV,RABBIT_ENDPOINT=\"$RABBIT_ENDPOINT\""
-fi 
+fi
 
 if [ -n "$RABBIT_QUEUE" ]; then
   SUPERVISOR_ENV="$SUPERVISOR_ENV,RABBIT_QUEUE=\"$RABBIT_QUEUE\""
-fi 
+fi
 
 if [ -n "$RABBIT_ROUTING_KEY" ]; then
   SUPERVISOR_ENV="$SUPERVISOR_ENV,RABBIT_ROUTING_KEY=\"$RABBIT_ROUTING_KEY\""
-fi 
+fi
 
 echo "Adding system of record to supervisord..."
 cat > /etc/supervisord.d/systemofrecord.ini << EOF
