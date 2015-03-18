@@ -21,9 +21,9 @@ class UnitTestConfig(Config):
 
 class PreviewConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI', 'postgresql://systemofrecord:systemofrecord@localhost/systemofrecord')
-    RABBIT_ENDPOINT = os.getenv('SQLALCHEMY_DATABASE_URI', 'amqp://mqpublisher:mqpublisherpassword@localhost:5672/')
-    RABBIT_QUEUE = os.getenv('SQLALCHEMY_DATABASE_URI', 'system_of_record')
-    RABBIT_ROUTING_KEY = os.getenv('SQLALCHEMY_DATABASE_URI', 'system_of_record')
+    RABBIT_ENDPOINT = os.getenv('RABBIT_ENDPOINT', 'amqp://mqpublisher:mqpublisherpassword@localhost:5672/')
+    RABBIT_QUEUE = os.getenv('RABBIT_QUEUE', 'system_of_record')
+    RABBIT_ROUTING_KEY = os.getenv('RABBIT_ROUTING_KEY', 'system_of_record')
     DEBUG = True
 
 class PreproductionConfig(Config):
