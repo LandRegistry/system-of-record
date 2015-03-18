@@ -21,7 +21,7 @@ class UnitTestConfig(Config):
 
 class PreviewConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'postgresql://systemofrecord:systemofrecord@localhost/systemofrecord'
-    RABBIT_ENDPOINT = 'amqp://guest:guest@localhost:5672//'
+    RABBIT_ENDPOINT = 'amqp://mqpublisher:mqpublisherpassword@localhost:5672//'
     RABBIT_QUEUE = 'system_of_record'
     RABBIT_ROUTING_KEY = 'system_of_record'
     DEBUG = True
