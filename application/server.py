@@ -5,7 +5,7 @@ from flask import request
 from kombu import Connection, Producer, Exchange, Queue
 import traceback
 from sqlalchemy.exc import IntegrityError
-from application.logging_utils import linux_user, client_ip, log_dir
+from python_logging.logging_utils import linux_user, client_ip, log_dir
 
 
 @app.route("/")
@@ -43,12 +43,12 @@ def insert():
         app.logger.info('within the insert operation')
 
     except IntegrityError:
-        db.session.rollback;
+        db.session.rollback()
         app.logger.error(traceback.format_exc()) #logs the call stack
         return 'Integrity error. Check that signature is unique', 500
 
     except Exception:
-        db.session.rollback;
+        db.session.rollback()
         app.logger.error(traceback.format_exc()) #logs the call stack
         return 'Service failed to insert', 500
 
