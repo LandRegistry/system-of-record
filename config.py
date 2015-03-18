@@ -9,6 +9,7 @@ class DevelopmentConfig(Config):
     RABBIT_ENDPOINT = 'amqp://guest:guest@localhost:5672//'
     RABBIT_QUEUE = 'system_of_record'
     RABBIT_ROUTING_KEY = 'system_of_record'
+    LOGGING_PATH = 'application/logging.yaml'
     DEBUG = True
 
 class UnitTestConfig(Config):
@@ -24,6 +25,7 @@ class PreviewConfig(Config):
     RABBIT_ENDPOINT = 'amqp://guest:guest@localhost:5672//'
     RABBIT_QUEUE = 'system_of_record'
     RABBIT_ROUTING_KEY = 'system_of_record'
+    LOGGING_PATH = 'application/logging.yaml'
     DEBUG = True
 
 class PreproductionConfig(Config):

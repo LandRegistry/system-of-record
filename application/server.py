@@ -5,6 +5,7 @@ from flask import request
 from kombu import Connection, Producer, Exchange, Queue
 import traceback
 from sqlalchemy.exc import IntegrityError
+from application.logging_utils import linux_user, client_ip, log_dir
 
 
 @app.route("/")
@@ -21,8 +22,25 @@ def insert():
     try:
         #Start database transaction with 'add'.  Commit if all well.
         db.session.add(signed_title_json_object)
-        publish_json_to_queue(request.get_json())
+        #Log that the record was published
+        title_number = signed_title_json['data']['titleno']
         db.session.commit()
+        app.logger.info(
+            'Record successfully inserted to database at %s' % (app.config['SQLALCHEMY_DATABASE_URI']))
+        app.logger.info('client ip is: ' + client_ip(request))
+        app.logger.info('Signed on user is: ' + linux_user())
+        app.logger.info('title number is: ' + title_number)
+        app.logger.info('logged at: ' + str(log_dir('info')))
+        app.logger.info('within the insert operation')
+
+        publish_json_to_queue(request.get_json())
+        app.logger.info(
+            'Record successfully published to %s queue at %s' % (app.config['RABBIT_QUEUE'], app.config['RABBIT_ENDPOINT']))
+        app.logger.info('client ip is: ' + client_ip(request))
+        app.logger.info('Signed on user is: ' + linux_user())
+        app.logger.info('title number is: ' + title_number)
+        app.logger.info('logged at: ' + str(log_dir('info')))
+        app.logger.info('within the insert operation')
 
     except IntegrityError:
         db.session.rollback;
@@ -54,6 +72,4 @@ def publish_json_to_queue(json_string):
     # Producers are used to publish messages.
     producer = Producer(connection)
     producer.publish(json_string, exchange=exchange, routing_key=queue.routing_key,  serializer='json')
-
-
 
