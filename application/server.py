@@ -27,7 +27,7 @@ def insert():
     except IntegrityError:
         db.session.rollback;
         app.logger.error(traceback.format_exc()) #logs the call stack
-        return 'Integrity error. Check that signature is unique', 500
+        return 'Integrity error. Check that signature is unique', 409
 
     except Exception:
         db.session.rollback;
