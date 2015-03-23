@@ -32,7 +32,7 @@ def get_last_signature():
     try:
         last_record = get_last_record()
         #convert the sor dictionary to a string
-        sor_as_string = json.dumps(last_record.sor)
+        sor_as_string = json.dumps(last_record.record)
         return sor_as_string
     except AttributeError:
         return "No row found", 404
@@ -52,8 +52,8 @@ def get_last_record():
 
 def query_nested_stuff_like_this():
     signed_titles_instance = db.session.query(SignedTitles).first()
-    a_dict = signed_titles_instance.sor
-    my_element = a_dict['data']['titleno']
+    a_dict = signed_titles_instance.record
+    my_element = a_dict['data']['title_number']
     return my_element
 
 
