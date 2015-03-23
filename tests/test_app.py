@@ -29,9 +29,11 @@ class TestSequenceFunctions(unittest.TestCase):
 
     @mock.patch('application.server.db.session.add')
     @mock.patch('application.server.db.session.commit')
-    def test_insert_route_correctly(self, mock_add, mock_commit):
+    @mock.patch('application.server.publish_json_to_queue')
+    def test_insert_route_correctly(self, mock_add, mock_commit, mock_publish_json_to_queue):
         mock_add.side_effect = self.pretend_db_session_add()
         mock_commit.side_effect = self.pretend_db_session_commit()
+        mock_publish_json_to_queue = self.pretend_publish_json_to_queue
 
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
@@ -56,7 +58,8 @@ class TestSequenceFunctions(unittest.TestCase):
     def pretend_db_session_commit(self):
         app.logger.info('pretend_db_session_commit called')
 
-    def test_publish_to_queue(self):
-        publish_json_to_queue({"akey":"aValue"})
+    def pretend_publish_json_to_queue(self):
+        app.logger.info('pretend_publish_json_to_queue called')
+
 
 

@@ -31,7 +31,7 @@ def insert():
         error_message = 'Integrity error. Check that signature is unique. '
         app.logger.error(make_log_msg(error_message, request, 'error', title_number))
         app.logger.error(traceback.format_exc())  # logs the call stack
-        return error_message, 500
+        return error_message, 409
 
     except Exception:
         db.session.rollback()
