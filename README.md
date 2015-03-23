@@ -66,7 +66,7 @@ curl http://127.0.0.1:5002/getnextqueuemessage
 Note:  Use 0.0.0.0 when running from host.  Use 10.0.2.2 when calling from another VM.
 
 ```
-curl -X POST -d '{"sig":"some_signed_data","data":{"titleno": "DN1"}}' -H "Content-Type: application/json" http://127.0.0.1:5001/insert
+curl -X POST -d '{"sig":"some_signed_data","data":{"title_number": "DN1", "application_reference":"ABR123"}}' -H "Content-Type: application/json" http://127.0.0.1:5001/insert
 ```
 
 ##How to check that the service is running:
@@ -121,7 +121,7 @@ python3 manage.py db upgrade
 ##How to query the database with PSQL
 
 - Login to the centos virtual machine.
-- switch to root with 
+- switch to root with
 
 ```
 sudo -i
@@ -130,20 +130,17 @@ sudo -i
 - login to the system of record database with this
 
 ```
-sudo -u postgres psql systemofrecord
+psql -U systemofrecord systemofrecord
 ```
 
-describe tables with 
+The main table in the systemofrecord database is called records. To describe this table use the following command
 
 ```
-\d
+\d records
 ```
 
-To query, update, delete from a table use sql
+To query, update, delete from the table use sql
 
 ```
-select * from sor;
+select * from records;
 ```
-
-
-
