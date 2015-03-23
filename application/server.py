@@ -27,12 +27,12 @@ def insert():
         db.session.commit()
 
     except IntegrityError:
-        db.session.rollback;
+        db.session.rollback()
         app.logger.error(traceback.format_exc()) #logs the call stack
         return 'Integrity error. Check that signature is unique', 409
 
     except Exception:
-        db.session.rollback;
+        db.session.rollback()
         app.logger.error(traceback.format_exc()) #logs the call stack
         return 'Service failed to insert', 500
 
