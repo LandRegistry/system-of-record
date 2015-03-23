@@ -6,5 +6,10 @@ class { '::rabbitmq':
 rabbitmq_user { 'mqpublisher':
  admin    => true,
  password => 'mqpublisherpassword',
- tags     => ['administrator'],
+}
+
+rabbitmq_user_permissions { 'mqpublisher@/':
+  configure_permission => '.*',
+  read_permission      => '.*',
+  write_permission     => '.*',
 }
