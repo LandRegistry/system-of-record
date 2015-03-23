@@ -19,12 +19,23 @@ def insert():
     signed_title_json_object = SignedTitles(signed_title_json)
 
     title_number = get_title_number(request)
-    # Write to database
     try:
-        #Start database transaction with 'add'.  Commit if all well.
         db.session.add(signed_title_json_object)
-        #Log that the record was published
+        #flush the database session to send the insert to the database
+        #to check unique constraint before commit
+        db.session.flush()
+
+        # Publish to queue upon successful insertion
+        publish_json_to_queue(request.get_json())
+        app.logger.audit(
+            make_log_msg('Record successfully published to %s queue at %s' % (
+                app.config['RABBIT_QUEUE'], app.config['RABBIT_ENDPOINT']), request, 'info', title_number))
+
         db.session.commit()
+
+        app.logger.audit(
+            make_log_msg('Record successfully inserted to database at %s. ' % app.config['SQLALCHEMY_DATABASE_URI'],
+                         request, 'info', title_number))
 
     except IntegrityError:
         db.session.rollback()
@@ -39,23 +50,6 @@ def insert():
         app.logger.error(make_log_msg(error_message, request, 'error', title_number))
         app.logger.error(traceback.format_exc())  # logs the call stack
         return error_message, 500
-
-    app.logger.audit(
-        make_log_msg('Record successfully inserted to database at %s. ' % app.config['SQLALCHEMY_DATABASE_URI'],
-                     request, 'info', title_number))
-
-    # Publish to queue upon successful insertion
-    try:
-        publish_json_to_queue(request.get_json())
-    except Exception:
-        error_message = 'Record inserted to database, but message not published.'
-        app.logger.error(make_log_msg(error_message, request, 'error', title_number))
-        app.logger.error(traceback.format_exc())  # logs the call stack
-        return error_message, 500
-
-    app.logger.audit(
-        make_log_msg('Record successfully published to %s queue at %s' % (
-            app.config['RABBIT_QUEUE'], app.config['RABBIT_ENDPOINT']), request, 'info', title_number))
 
     return "row inserted", 201
 
@@ -96,6 +90,3 @@ def get_title_number(request):
         error_message = "title number not found. Check JSON format: "
         app.logger.error(make_log_msg(error_message, request, 'error', request.get_json()))
         return error_message + str(err)
-
-
-
