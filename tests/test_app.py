@@ -29,10 +29,12 @@ class TestSequenceFunctions(unittest.TestCase):
 
     @mock.patch('application.server.db.session.add')
     @mock.patch('application.server.db.session.commit')
+    @mock.patch('application.server.db.session.flush')
     @mock.patch('application.server.publish_json_to_queue')
-    def test_insert_route_correctly(self, mock_add, mock_commit, mock_publish_json_to_queue):
+    def test_insert_route_correctly(self, mock_add, mock_commit, mock_flush, mock_publish_json_to_queue):
         mock_add.side_effect = self.pretend_db_session_add()
         mock_commit.side_effect = self.pretend_db_session_commit()
+        mock_flush.side_effect = self.pretend_db_session_flush()
         mock_publish_json_to_queue = self.pretend_publish_json_to_queue
 
         headers = {'content-Type': 'application/json'}
@@ -43,9 +45,11 @@ class TestSequenceFunctions(unittest.TestCase):
 
     @mock.patch('application.server.db.session.add')
     @mock.patch('application.server.db.session.commit')
-    def test_insert_route_incorrectly(self, mock_add, mock_commit):
+    @mock.patch('application.server.db.session.flush')
+    def test_insert_route_incorrectly(self, mock_add, mock_commit, mock_flush):
         mock_add.side_effect = self.pretend_db_session_add()
         mock_commit.side_effect = self.pretend_db_session_commit()
+        mock_flush.side_effect = self.pretend_db_session_flush()
 
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = INCORRECT_TEST_TITLE, headers = headers)
@@ -58,8 +62,8 @@ class TestSequenceFunctions(unittest.TestCase):
     def pretend_db_session_commit(self):
         app.logger.info('pretend_db_session_commit called')
 
+    def pretend_db_session_flush(self):
+        app.logger.info('pretend_db_session_flush called')
+
     def pretend_publish_json_to_queue(self):
         app.logger.info('pretend_publish_json_to_queue called')
-
-
-

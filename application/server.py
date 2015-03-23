@@ -5,6 +5,7 @@ from flask import request
 from kombu import Connection, Producer, Exchange, Queue
 import traceback
 from sqlalchemy.exc import IntegrityError
+import time
 
 
 @app.route("/")
@@ -17,10 +18,11 @@ def insert():
     signed_title_json = request.get_json()
     signed_title_json_object = SignedTitles(signed_title_json)
 
-    # Write to database
     try:
-        #Start database transaction with 'add'.  Commit if all well.
         db.session.add(signed_title_json_object)
+        #flush the database session to send the insert to the database
+        #to check unique constraint before commit
+        db.session.flush()
         publish_json_to_queue(request.get_json())
         db.session.commit()
 
@@ -54,6 +56,3 @@ def publish_json_to_queue(json_string):
     # Producers are used to publish messages.
     producer = Producer(connection)
     producer.publish(json_string, exchange=exchange, routing_key=queue.routing_key,  serializer='json')
-
-
-
