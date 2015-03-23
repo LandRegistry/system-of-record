@@ -3,6 +3,7 @@ from application import server
 from application.server import app, publish_json_to_queue
 import os
 import mock
+from sqlalchemy.exc import IntegrityError
 
 CORRECT_TEST_TITLE = '{"sig":"some_signed_data","data":{"titleno": "DN1"}}'
 INCORRECT_TEST_TITLE = '{"missing closing speech marks :"some_signed_data","data":{"titleno": "DN1"}}'
@@ -35,7 +36,7 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_add.side_effect = self.pretend_db_session_add()
         mock_commit.side_effect = self.pretend_db_session_commit()
         mock_flush.side_effect = self.pretend_db_session_flush()
-        mock_publish_json_to_queue = self.pretend_publish_json_to_queue
+        mock_publish_json_to_queue.side_effect = self.pretend_publish_json_to_queue
 
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
@@ -55,6 +56,26 @@ class TestSequenceFunctions(unittest.TestCase):
         response = self.app.post('/insert', data = INCORRECT_TEST_TITLE, headers = headers)
         self.assertEqual(response.status, '400 BAD REQUEST')
 
+    @mock.patch('application.server.db.session.add')
+    @mock.patch('application.server.db.session.commit')
+    @mock.patch('application.server.db.session.flush')
+    @mock.patch('application.server.publish_json_to_queue')
+    def test_record_unique_constraint(self, mock_add, mock_commit, mock_flush, mock_publish_json_to_queue):
+        mock_add.side_effect = self.pretend_db_session_add()
+        mock_commit.side_effect = self.pretend_db_session_commit()
+        mock_flush.side_effect = self.pretend_violate_constraint()
+        # mock_flush.side_effect = self.pretend_db_session_flush()
+        mock_publish_json_to_queue.side_effect = self.pretend_publish_json_to_queue
+
+
+        # headers = {'content-Type': 'application/json'}
+
+        # self.assertRaises(IntegrityError, self.app.post('/insert'), CORRECT_TEST_TITLE, headers )
+
+        # response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
+        # self.assertEqual(response.status, '201 CREATED')
+        # self.assertEqual(response.data.decode("utf-8"), 'row inserted')
+
 
     def pretend_db_session_add(self):
         app.logger.info('pretend_db_session_add called')
@@ -67,3 +88,10 @@ class TestSequenceFunctions(unittest.TestCase):
 
     def pretend_publish_json_to_queue(self):
         app.logger.info('pretend_publish_json_to_queue called')
+
+    def pretend_violate_constraint(self):
+        raise Exception('boom!')
+
+
+
+
