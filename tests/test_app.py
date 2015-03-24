@@ -14,14 +14,14 @@ class TestSequenceFunctions(unittest.TestCase):
         app.config.from_object(os.environ.get('SETTINGS'))
         self.app = server.app.test_client()
 
-    def add_mocks(fn):
+    def add_mocks(function):
         @mock.patch('application.server.db.session.add')
         @mock.patch('application.server.db.session.commit')
         @mock.patch('application.server.db.session.flush')
         @mock.patch('application.server.db.session.rollback')
         @mock.patch('application.server.publish_json_to_queue')
         def wrapped(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue):
-            return fn(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue)
+            return function(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue)
         return wrapped
 
     def test_config_variables_blank(self):
