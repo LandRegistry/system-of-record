@@ -2,6 +2,7 @@ import os
 
 class Config(object):
     DEBUG = False
+    LOGGING_PATH = os.getenv('LOGGING_PATH', 'python_logging/logging.yaml')
 
 class DevelopmentConfig(Config):
     # format is dialect+driver://username:password@host:port/database
@@ -9,7 +10,6 @@ class DevelopmentConfig(Config):
     RABBIT_ENDPOINT = 'amqp://mqpublisher:mqpublisherpassword@localhost:5672//'
     RABBIT_QUEUE = 'system_of_record'
     RABBIT_ROUTING_KEY = 'system_of_record'
-    LOGGING_PATH = 'python_logging/logging.yaml'
     DEBUG = True
 
 class UnitTestConfig(Config):
@@ -18,7 +18,6 @@ class UnitTestConfig(Config):
     RABBIT_ENDPOINT = ''
     RABBIT_QUEUE = ''
     RABBIT_ROUTING_KEY = ''
-    LOGGING_PATH = 'python_logging/logging.yaml'
     DEBUG = True
 
 class PreviewConfig(Config):
