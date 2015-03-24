@@ -139,7 +139,7 @@ The main table in the systemofrecord database is called records. To describe thi
 \d records
 ```
 
-To query, update, delete from the table use sql
+To query, update, delete from the table use sql.
 
 ```
 select * from records;
