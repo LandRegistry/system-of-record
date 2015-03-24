@@ -1,18 +1,28 @@
 import unittest
 from application import server
-from application.server import app, publish_json_to_queue
+from application.server import app, publish_json_to_queue, make_log_msg
 import os
 import mock
 from sqlalchemy.exc import IntegrityError
 
-CORRECT_TEST_TITLE = '{"sig":"some_signed_data","data":{"titleno": "DN1"}}'
-INCORRECT_TEST_TITLE = '{"missing closing speech marks :"some_signed_data","data":{"titleno": "DN1"}}'
+CORRECT_TEST_TITLE = '{"sig":"some_signed_data","data":{"title_number": "DN1"}}'
+INCORRECT_TEST_TITLE = '{"missing closing speech marks :"some_signed_data","data":{"title_number": "DN1"}}'
 
 class TestSequenceFunctions(unittest.TestCase):
 
     def setUp(self):
         app.config.from_object(os.environ.get('SETTINGS'))
         self.app = server.app.test_client()
+
+    def add_mocks(fn):
+        @mock.patch('application.server.db.session.add')
+        @mock.patch('application.server.db.session.commit')
+        @mock.patch('application.server.db.session.flush')
+        @mock.patch('application.server.db.session.rollback')
+        @mock.patch('application.server.publish_json_to_queue')
+        def wrapped(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue):
+            return fn(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue)
+        return wrapped
 
     def test_config_variables_blank(self):
         self.assertEqual(app.config['RABBIT_ENDPOINT'], '')
@@ -28,70 +38,41 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual((self.app.get('/')).data.decode("utf-8"), "Everything is OK")
 
 
-    @mock.patch('application.server.db.session.add')
-    @mock.patch('application.server.db.session.commit')
-    @mock.patch('application.server.db.session.flush')
-    @mock.patch('application.server.publish_json_to_queue')
-    def test_insert_route_correctly(self, mock_add, mock_commit, mock_flush, mock_publish_json_to_queue):
-        mock_add.side_effect = self.pretend_db_session_add()
-        mock_commit.side_effect = self.pretend_db_session_commit()
-        mock_flush.side_effect = self.pretend_db_session_flush()
-        mock_publish_json_to_queue.side_effect = self.pretend_publish_json_to_queue
-
+    @add_mocks
+    def test_insert_route_correctly(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue):
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
         self.assertEqual(response.status, '201 CREATED')
         self.assertEqual(response.data.decode("utf-8"), 'row inserted')
 
 
-    @mock.patch('application.server.db.session.add')
-    @mock.patch('application.server.db.session.commit')
-    @mock.patch('application.server.db.session.flush')
-    def test_insert_route_incorrectly(self, mock_add, mock_commit, mock_flush):
-        mock_add.side_effect = self.pretend_db_session_add()
-        mock_commit.side_effect = self.pretend_db_session_commit()
-        mock_flush.side_effect = self.pretend_db_session_flush()
-
+    @add_mocks
+    def test_insert_route_incorrectly(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue):
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = INCORRECT_TEST_TITLE, headers = headers)
         self.assertEqual(response.status, '400 BAD REQUEST')
 
-    @mock.patch('application.server.db.session.add')
-    @mock.patch('application.server.db.session.commit')
-    @mock.patch('application.server.db.session.flush')
-    @mock.patch('application.server.publish_json_to_queue')
-    def test_record_unique_constraint(self, mock_add, mock_commit, mock_flush, mock_publish_json_to_queue):
-        mock_add.side_effect = self.pretend_db_session_add()
-        mock_commit.side_effect = self.pretend_db_session_commit()
-        mock_flush.side_effect = self.pretend_violate_constraint()
-        # mock_flush.side_effect = self.pretend_db_session_flush()
-        mock_publish_json_to_queue.side_effect = self.pretend_publish_json_to_queue
+    @add_mocks
+    def test_record_unique_constraint(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue):
+        mock_flush.side_effect = self.pretend_violate_constraint
 
+        headers = {'content-Type': 'application/json'}
+        response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
+        self.assertEqual(response.status, '409 CONFLICT')
+        self.assertEqual(response.data.decode("utf-8"), 'Integrity error. Check that signature is unique. ')
 
-        # headers = {'content-Type': 'application/json'}
+    @add_mocks
+    def test_raise_exception(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue):
+        mock_publish_json_to_queue.side_effect = self.create_exception
 
-        # self.assertRaises(IntegrityError, self.app.post('/insert'), CORRECT_TEST_TITLE, headers )
-
-        # response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
-        # self.assertEqual(response.status, '201 CREATED')
-        # self.assertEqual(response.data.decode("utf-8"), 'row inserted')
-
-
-    def pretend_db_session_add(self):
-        app.logger.info('pretend_db_session_add called')
-
-    def pretend_db_session_commit(self):
-        app.logger.info('pretend_db_session_commit called')
-
-    def pretend_db_session_flush(self):
-        app.logger.info('pretend_db_session_flush called')
-
-    def pretend_publish_json_to_queue(self):
-        app.logger.info('pretend_publish_json_to_queue called')
+        headers = {'content-Type': 'application/json'}
+        response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
+        self.assertEqual(response.status, '500 INTERNAL SERVER ERROR')
+        self.assertEqual(response.data.decode("utf-8"), 'Service failed to insert to the database. ')
 
     def pretend_violate_constraint(self):
-        raise Exception('boom!')
+        app.logger.info('pretend_violate_constraint called')
+        raise IntegrityError('boom!','','')
 
-
-
-
+    def create_exception(self, json_string):
+        raise Exception('bang!')

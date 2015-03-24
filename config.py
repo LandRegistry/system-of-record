@@ -18,6 +18,7 @@ class UnitTestConfig(Config):
     RABBIT_ENDPOINT = ''
     RABBIT_QUEUE = ''
     RABBIT_ROUTING_KEY = ''
+    LOGGING_PATH = 'python_logging/logging.yaml'
     DEBUG = True
 
 class PreviewConfig(Config):

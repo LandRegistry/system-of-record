@@ -85,7 +85,7 @@ def make_log_msg(message, request, log_level, title_number):
 def get_title_number(request):
     #gets the title number from minted json
     try:
-        return request.get_json()['data']['titleno']
+        return request.get_json()['data']['title_number']
     except Exception as err:
         error_message = "title number not found. Check JSON format: "
         app.logger.error(make_log_msg(error_message, request, 'error', request.get_json()))
