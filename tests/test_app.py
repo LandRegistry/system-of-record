@@ -4,6 +4,8 @@ from application.server import app, publish_json_to_queue, make_log_msg
 import os
 import mock
 from sqlalchemy.exc import IntegrityError
+import time
+from python_logging.logging_utils import log_dir
 
 CORRECT_TEST_TITLE = '{"sig":"some_signed_data","data":{"title_number": "DN1"}}'
 INCORRECT_TEST_TITLE = '{"missing closing speech marks :"some_signed_data","data":{"title_number": "DN1"}}'
@@ -76,3 +78,22 @@ class TestSequenceFunctions(unittest.TestCase):
 
     def create_exception(self, json_string):
         raise Exception('bang!')
+
+    def test_logging_writes_to_debug_log(self):
+        test_timestamp = time.time()
+        app.logger.debug(test_timestamp)
+        log_directory = log_dir('debug')
+        f = open(log_directory, 'r')
+        file_content = f.read()
+        self.assertTrue(str(test_timestamp) in file_content)
+
+    def test_logging_writes_to_error_log(self):
+        test_timestamp = time.time()
+        app.logger.error(test_timestamp)
+        log_directory = log_dir('error')
+        f = open(log_directory, 'r')
+        file_content = f.read()
+        self.assertTrue(str(test_timestamp) in file_content)
+
+
+
