@@ -53,6 +53,10 @@ if [ -n "$RABBIT_ROUTING_KEY" ]; then
   SUPERVISOR_ENV="$SUPERVISOR_ENV,RABBIT_ROUTING_KEY=\"$RABBIT_ROUTING_KEY\""
 fi
 
+if [ -n "$LOGGING_PATH" ]; then
+  SUPERVISOR_ENV="$SUPERVISOR_ENV,LOGGING_PATH=\"$LOGGING_PATH\""
+fi
+
 echo "Adding system of record to supervisord..."
 cat > /etc/supervisord.d/systemofrecord.ini << EOF
 [program:systemofrecord]
