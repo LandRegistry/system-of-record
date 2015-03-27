@@ -87,6 +87,7 @@ class TestSequenceFunctions(unittest.TestCase):
         file_content = f.read()
         self.assertTrue(str(test_timestamp) in file_content)
 
+
     def test_logging_writes_to_error_log(self):
         test_timestamp = time.time()
         app.logger.error(test_timestamp)
@@ -95,5 +96,22 @@ class TestSequenceFunctions(unittest.TestCase):
         file_content = f.read()
         self.assertTrue(str(test_timestamp) in file_content)
 
+
+    def test_logging_writes_audits(self):
+        test_timestamp = time.time()
+        app.logger.audit(test_timestamp)
+        log_directory = log_dir('error')
+        f = open(log_directory, 'r')
+        file_content = f.read()
+        self.assertTrue(str(test_timestamp) in file_content)
+
+
+    def test_info_logging_writes_to_debug_log(self):
+        test_timestamp = time.time()
+        app.logger.info(test_timestamp)
+        log_directory = log_dir('debug')
+        f = open(log_directory, 'r')
+        file_content = f.read()
+        self.assertTrue(str(test_timestamp) in file_content)
 
 
