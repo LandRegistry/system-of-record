@@ -29,13 +29,13 @@ def insert():
         publish_json_to_queue(request.get_json())
         app.logger.audit(
             make_log_msg('Record successfully published to %s queue at %s' % (
-                app.config['RABBIT_QUEUE'], app.config['RABBIT_ENDPOINT']), request, 'info', title_number))
+                app.config['RABBIT_QUEUE'], app.config['RABBIT_ENDPOINT']), request, 'debug', title_number))
 
         db.session.commit()
 
         app.logger.audit(
             make_log_msg('Record successfully inserted to database at %s. ' % app.config['SQLALCHEMY_DATABASE_URI'],
-                         request, 'info', title_number))
+                         request, 'debug', title_number))
 
     except IntegrityError:
         db.session.rollback()
