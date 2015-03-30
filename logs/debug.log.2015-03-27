@@ -1,0 +1,31 @@
+INFO       2015-03-27 13:32:42,576  - application          /home/vagrant/srv/system-of-record/tests/test_app.py         #111   test_info_logging_writes_to_debug_log 1427463162.5754483
+AUDIT      2015-03-27 13:32:42,618  - application          /home/vagrant/srv/system-of-record/application/server.py     #32    insert               Record successfully published to  queue at Client ip address is: None. Signed in as: vagrant. Title number is: DN1. Logged at: system-of-record/logs/debug.log. 
+AUDIT      2015-03-27 13:32:42,632  - application          /home/vagrant/srv/system-of-record/application/server.py     #38    insert               Record successfully inserted to database at . Client ip address is: None. Signed in as: vagrant. Title number is: DN1. Logged at: system-of-record/logs/debug.log. 
+AUDIT      2015-03-27 13:32:42,649  - application          /home/vagrant/srv/system-of-record/tests/test_app.py         #102   test_logging_writes_audits 1427463162.649046
+DEBUG      2015-03-27 13:32:42,668  - application          /home/vagrant/srv/system-of-record/tests/test_app.py         #84    test_logging_writes_to_debug_log 1427463162.6687334
+ERROR      2015-03-27 13:32:42,686  - application          /home/vagrant/srv/system-of-record/tests/test_app.py         #93    test_logging_writes_to_error_log 1427463162.6865346
+ERROR      2015-03-27 13:32:42,725  - application          /home/vagrant/srv/system-of-record/application/server.py     #50    insert               Service failed to insert to the database. Client ip address is: None. Signed in as: vagrant. Title number is: DN1. Logged at: system-of-record/logs/errors.log. 
+ERROR      2015-03-27 13:32:42,729  - application          /home/vagrant/srv/system-of-record/application/server.py     #51    insert               Traceback (most recent call last):
+  File "/home/vagrant/srv/system-of-record/application/server.py", line 23, in insert
+    db.session.add(signed_title_json_object)
+  File "/home/vagrant/venvs/system-of-record/lib/python3.4/site-packages/mock.py", line 955, in __call__
+    return _mock_self._mock_call(*args, **kwargs)
+  File "/home/vagrant/venvs/system-of-record/lib/python3.4/site-packages/mock.py", line 1018, in _mock_call
+    ret_val = effect(*args, **kwargs)
+  File "/home/vagrant/srv/system-of-record/tests/test_app.py", line 80, in create_exception
+    raise Exception('bang!')
+Exception: bang!
+
+INFO       2015-03-27 13:32:42,737  - application          /home/vagrant/srv/system-of-record/tests/test_app.py         #76    pretend_violate_constraint pretend_violate_constraint called
+ERROR      2015-03-27 13:32:42,753  - application          /home/vagrant/srv/system-of-record/application/server.py     #43    insert               Integrity error. Check that signature is unique. Client ip address is: None. Signed in as: vagrant. Title number is: DN1. Logged at: system-of-record/logs/errors.log. 
+ERROR      2015-03-27 13:32:42,755  - application          /home/vagrant/srv/system-of-record/application/server.py     #44    insert               Traceback (most recent call last):
+  File "/home/vagrant/srv/system-of-record/application/server.py", line 26, in insert
+    db.session.flush()
+  File "/home/vagrant/venvs/system-of-record/lib/python3.4/site-packages/mock.py", line 955, in __call__
+    return _mock_self._mock_call(*args, **kwargs)
+  File "/home/vagrant/venvs/system-of-record/lib/python3.4/site-packages/mock.py", line 1018, in _mock_call
+    ret_val = effect(*args, **kwargs)
+  File "/home/vagrant/srv/system-of-record/tests/test_app.py", line 77, in pretend_violate_constraint
+    raise IntegrityError('boom!','','')
+sqlalchemy.exc.IntegrityError: (str)  'boom!' ''
+

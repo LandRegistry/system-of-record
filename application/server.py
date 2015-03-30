@@ -26,7 +26,7 @@ def insert():
         db.session.flush()
 
         # Publish to queue upon successful insertion
-        publish_json_to_queue(request.get_json())
+        publish_json_to_queue(request.get_json(), get_title_number(request))
         app.logger.audit(
             make_log_msg('Record successfully published to %s queue at %s' % (
                 app.config['RABBIT_QUEUE'], app.config['RABBIT_ENDPOINT']), request, 'debug', title_number))
@@ -54,7 +54,7 @@ def insert():
     return "row inserted", 201
 
 
-def publish_json_to_queue(json_string):
+def publish_json_to_queue(json_string, title_number):
     # Next write to queue for consumption by register publisher
     # By default messages sent to exchanges are persistent (delivery_mode=2),
     # and queues and exchanges are durable.
@@ -70,7 +70,7 @@ def publish_json_to_queue(json_string):
 
     # Producers are used to publish messages.
     producer = Producer(connection)
-    producer.publish(json_string, exchange=exchange, routing_key=queue.routing_key,  serializer='json')
+    producer.publish(json_string, exchange=exchange, routing_key=queue.routing_key,  serializer='json', headers={'title_number': title_number})
 
 
 def make_log_msg(message, request, log_level, title_number):
