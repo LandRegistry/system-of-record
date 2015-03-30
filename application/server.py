@@ -51,7 +51,11 @@ def insert():
         app.logger.error(traceback.format_exc())  # logs the call stack
         return error_message, 500
 
-    return "row inserted", 201
+    success_message = (". row inserted to system of record database. ")
+    app.logger.audit(
+        make_log_msg(success_message, request, 'debug', title_number))
+    return success_message, 201
+
 
 
 def publish_json_to_queue(json_string, title_number):
@@ -70,7 +74,8 @@ def publish_json_to_queue(json_string, title_number):
 
     # Producers are used to publish messages.
     producer = Producer(connection)
-    producer.publish(json_string, exchange=exchange, routing_key=queue.routing_key,  serializer='json', headers={'title_number': title_number})
+    producer.publish(json_string, exchange=exchange, routing_key=queue.routing_key, serializer='json',
+                     headers={'title_number': title_number})
 
 
 def make_log_msg(message, request, log_level, title_number):

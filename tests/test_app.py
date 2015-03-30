@@ -45,7 +45,7 @@ class TestSequenceFunctions(unittest.TestCase):
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
         self.assertEqual(response.status, '201 CREATED')
-        self.assertEqual(response.data.decode("utf-8"), 'row inserted')
+        self.assertEqual(response.data.decode("utf-8"), '. row inserted to system of record database. ')
 
 
     @add_mocks
