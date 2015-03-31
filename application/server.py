@@ -6,6 +6,8 @@ from kombu import Connection, Producer, Exchange, Queue
 import traceback
 from sqlalchemy.exc import IntegrityError
 from python_logging.logging_utils import linux_user, client_ip, log_dir
+import re
+
 
 
 @app.route("/")
@@ -27,9 +29,11 @@ def insert():
 
         # Publish to queue upon successful insertion
         publish_json_to_queue(request.get_json(), get_title_number(request))
+        rabbit_endpoint = remove_username_password(app.config['RABBIT_ENDPOINT'])
         app.logger.audit(
-            make_log_msg('Record successfully published to %s queue at %s' % (
-                app.config['RABBIT_QUEUE'], app.config['RABBIT_ENDPOINT']), request, 'debug', title_number))
+            make_log_msg(
+                'Record successfully published to %s queue at %s. ' % (app.config['RABBIT_QUEUE'], rabbit_endpoint),
+                    request, 'debug', title_number))
 
         db.session.commit()
 
@@ -47,7 +51,8 @@ def insert():
         app.logger.error(error_message + err.args[0])  # Don't log stack here. Only show title_number and abr.
         return error_message, 500
 
-    success_message = 'Record successfully inserted to database at %s. ' % app.config['SQLALCHEMY_DATABASE_URI']
+    postgres_endpoint = remove_username_password(app.config['SQLALCHEMY_DATABASE_URI'])
+    success_message = 'Record successfully inserted to database at %s. ' % postgres_endpoint
     app.logger.audit(
         make_log_msg(success_message,
                  request, 'debug', title_number))
@@ -92,3 +97,11 @@ def get_title_number(request):
         error_message = "title number not found. Check JSON format: "
         app.logger.error(make_log_msg(error_message, request, 'error', request.get_json()))
         return error_message + str(err)
+
+
+def remove_username_password(endpoint_string):
+    try:
+        return re.sub('://[^:]+:[^@]+@', '://', endpoint_string)
+    except:
+        return "unknown endpoint"
+    end
