@@ -33,27 +33,24 @@ def insert():
 
         db.session.commit()
 
-        app.logger.audit(
-            make_log_msg('Record successfully inserted to database at %s. ' % app.config['SQLALCHEMY_DATABASE_URI'],
-                         request, 'debug', title_number))
-
     except IntegrityError as err:
         db.session.rollback()
         error_message = 'Integrity error. Check that signature is unique. '
         app.logger.error(make_log_msg(error_message, request, 'error', title_number))
-        app.logger.error(error_message + str(err))  # Don't log stack here.  Includes data.
+        app.logger.error(error_message + err.args[0])  # Don't log stack here. Only show title_number and abr.
         return error_message, 409
 
     except Exception as err:
         db.session.rollback()
         error_message = 'Service failed to insert to the database. '
         app.logger.error(make_log_msg(error_message, request, 'error', title_number))
-        app.logger.error(error_message + str(err)) # Don't log stack here.  Includes data.
+        app.logger.error(error_message + err.args[0])  # Don't log stack here. Only show title_number and abr.
         return error_message, 500
 
-    success_message = (". row inserted to system of record database. ")
+    success_message = 'Record successfully inserted to database at %s. ' % app.config['SQLALCHEMY_DATABASE_URI']
     app.logger.audit(
-        make_log_msg(success_message, request, 'debug', title_number))
+        make_log_msg(success_message,
+                 request, 'debug', title_number))
     return success_message, 201
 
 
