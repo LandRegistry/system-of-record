@@ -40,15 +40,13 @@ def insert():
     except IntegrityError:
         db.session.rollback()
         error_message = 'Integrity error. Check that signature is unique. '
-        app.logger.error(make_log_msg(error_message, request, 'error', title_number))
-        app.logger.error(traceback.format_exc())  # logs the call stack
+        app.logger.exception(make_log_msg(error_message, request, 'error', title_number))
         return error_message, 409
 
     except Exception:
         db.session.rollback()
         error_message = 'Service failed to insert to the database. '
-        app.logger.error(make_log_msg(error_message, request, 'error', title_number))
-        app.logger.error(traceback.format_exc())  # logs the call stack
+        app.logger.exception(make_log_msg(error_message, request, 'error', title_number))
         return error_message, 500
 
     return "row inserted", 201
