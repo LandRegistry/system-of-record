@@ -64,8 +64,9 @@ def publish_json_to_queue(json_string, title_number):
     # Next write to queue for consumption by register publisher
     # By default messages sent to exchanges are persistent (delivery_mode=2),
     # and queues and exchanges are durable.
+    # 'confirm_publish' means that the publish() call will wait for an acknowledgement.
     exchange = Exchange()
-    connection = Connection(app.config['RABBIT_ENDPOINT'])
+    connection = Connection(hostname=app.config['RABBIT_ENDPOINT'], transport_options={'confirm_publish': True})
 
     # Create a queue bound to the connection.
     # queue = Queue('system_of_record', exchange, routing_key='system_of_record')(connection)
@@ -104,4 +105,3 @@ def remove_username_password(endpoint_string):
         return re.sub('://[^:]+:[^@]+@', '://', endpoint_string)
     except:
         return "unknown endpoint"
-    end
