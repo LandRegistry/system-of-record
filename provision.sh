@@ -14,7 +14,7 @@ cat >> /home/vagrant/.bashrc << EOF
   source /usr/bin/virtualenvwrapper.sh
 EOF
 
-gem install --no-ri --no-rdoc puppet
+gem install --no-ri --no-rdoc puppet:3.7.5
 
 puppet module install puppetlabs-postgresql
 
