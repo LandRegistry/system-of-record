@@ -53,10 +53,14 @@ if [ -n "$RABBIT_ROUTING_KEY" ]; then
   SUPERVISOR_ENV="$SUPERVISOR_ENV,RABBIT_ROUTING_KEY=\"$RABBIT_ROUTING_KEY\""
 fi
 
+if [ -n "$LOGGING_PATH" ]; then
+  SUPERVISOR_ENV="$SUPERVISOR_ENV,LOGGING_PATH=\"$LOGGING_PATH\""
+fi
+
 echo "Adding system of record to supervisord..."
 cat > /etc/supervisord.d/systemofrecord.ini << EOF
 [program:systemofrecord]
-command=$HOME/venvs/system-of-record/bin/gunicorn --log-file=- --log-level DEBUG -b 0.0.0.0:5001 --timeout 120 application.server:app
+command=$HOME/venvs/system-of-record/bin/gunicorn -w 16 --log-file=- --log-level DEBUG -b 0.0.0.0:5001 --timeout 120 application.server:app
 directory=$dir
 autostart=true
 autorestart=true

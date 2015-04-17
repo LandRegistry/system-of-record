@@ -1,6 +1,6 @@
 import unittest
 from application import server
-from application.server import app, publish_json_to_queue, make_log_msg
+from application.server import app, publish_json_to_queue, remove_username_password
 import os
 import mock
 from sqlalchemy.exc import IntegrityError
@@ -45,7 +45,7 @@ class TestSequenceFunctions(unittest.TestCase):
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
         self.assertEqual(response.status, '201 CREATED')
-        self.assertEqual(response.data.decode("utf-8"), 'row inserted')
+        self.assertTrue('Record successfully inserted to database at' in response.data.decode("utf-8"))
 
 
     @add_mocks
@@ -64,9 +64,9 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual(response.data.decode("utf-8"), 'Integrity error. Check that signature is unique. ')
 
     @add_mocks
-    def test_raise_exception(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue):
-        mock_publish_json_to_queue.side_effect = self.create_exception
-
+    @mock.patch('application.server.remove_username_password')
+    def test_raise_exception(self, mock_add, mock_commit, mock_flush, mock_rollback, mock_publish_json_to_queue, mock_remove_username_password):
+        mock_remove_username_password.side_effect = self.create_exception
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
         self.assertEqual(response.status, '500 INTERNAL SERVER ERROR')
@@ -87,6 +87,7 @@ class TestSequenceFunctions(unittest.TestCase):
         file_content = f.read()
         self.assertTrue(str(test_timestamp) in file_content)
 
+
     def test_logging_writes_to_error_log(self):
         test_timestamp = time.time()
         app.logger.error(test_timestamp)
@@ -95,5 +96,29 @@ class TestSequenceFunctions(unittest.TestCase):
         file_content = f.read()
         self.assertTrue(str(test_timestamp) in file_content)
 
+
+    def test_logging_writes_audits(self):
+        test_timestamp = time.time()
+        app.logger.audit(test_timestamp)
+        log_directory = log_dir('error')
+        f = open(log_directory, 'r')
+        file_content = f.read()
+        self.assertTrue(str(test_timestamp) in file_content)
+
+
+    def test_info_logging_writes_to_debug_log(self):
+        test_timestamp = time.time()
+        app.logger.info(test_timestamp)
+        log_directory = log_dir('debug')
+        f = open(log_directory, 'r')
+        file_content = f.read()
+        self.assertTrue(str(test_timestamp) in file_content)
+
+    def test_remove_username_password(self):
+        self.assertEqual(remove_username_password('aprotocol://ausername:apassword@localhost:9876/'), 'aprotocol://localhost:9876/')
+        self.assertEqual(remove_username_password(None), 'unknown endpoint')
+
+
+    # def test_remove_username_password(self):
 
 
