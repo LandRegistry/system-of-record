@@ -40,15 +40,13 @@ def insert():
     except IntegrityError as err:
         db.session.rollback()
         error_message = 'Integrity error. Check that signature is unique. '
-        app.logger.error(make_log_msg(error_message, request, 'error', title_number))
-        app.logger.error(error_message + err.args[0])  # Don't log stack here. Only show title_number and abr.
+        app.logger.exception(make_log_msg(error_message, request, 'error', title_number))
         return error_message, 409
 
     except Exception as err:
         db.session.rollback()
         error_message = 'Service failed to insert to the database. '
-        app.logger.error(make_log_msg(error_message, request, 'error', title_number))
-        app.logger.error(error_message + err.args[0])  # Don't log stack here. Only show title_number and abr.
+        app.logger.exception(make_log_msg(error_message, request, 'error', title_number))
         return error_message, 500
 
     postgres_endpoint = remove_username_password(app.config['SQLALCHEMY_DATABASE_URI'])
