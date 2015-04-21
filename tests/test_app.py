@@ -61,7 +61,7 @@ class TestSequenceFunctions(unittest.TestCase):
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
         self.assertEqual(response.status, '409 CONFLICT')
-        self.assertEqual(response.data.decode("utf-8"), 'Integrity error. Check that signature is unique. ')
+        self.assertEqual(response.data.decode("utf-8"), 'Integrity error. Check that title number and application reference are unique. ')
 
     @add_mocks
     @mock.patch('application.server.remove_username_password')

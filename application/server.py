@@ -39,7 +39,7 @@ def insert():
 
     except IntegrityError as err:
         db.session.rollback()
-        error_message = 'Integrity error. Check that signature is unique. '
+        error_message = 'Integrity error. Check that title number and application reference are unique. '
         app.logger.exception(make_log_msg(error_message, request, 'error', title_number))
         return error_message, 409
 
@@ -103,3 +103,44 @@ def remove_username_password(endpoint_string):
         return re.sub('://[^:]+:[^@]+@', '://', endpoint_string)
     except:
         return "unknown endpoint"
+
+
+@app.route("/republish", methods=["POST"])
+def republish():
+    #Consider Indexes on Expressions to make selects more efficient.
+    republish_json = request.get_json()
+    # Now loop through the json elements
+    for a_title in republish_json['titles']:
+
+        # get all versions of the register for a title number.  Key 'all-versions' contains a boolean.
+        if 'all-versions' in a_title and a_title['all-versions']:
+            app.logger.info('get all versions of %s' % a_title['title_number'])
+            sql = "select record from records where (record->'data'->>'title_number')::text = '%s';" % a_title[
+                'title_number']
+            result = db.engine.execute(sql)
+            for row in result:
+                app.logger.info(row[0])
+                publish_json_to_queue((row[0]), a_title['title_number'])
+
+        # get the register by title_number and application_reference
+        elif 'application_reference' in a_title:
+            app.logger.info('get %s with reference %s ' % (a_title['title_number'], a_title['application_reference']))
+            sql = "select record from records where (record->'data'->>'title_number')::text = '%s' and (record->'data'->>'application_reference')::text = '%s';" % (
+                a_title['title_number'], a_title['application_reference'])
+            result = db.engine.execute(sql)
+
+            for row in result:
+                app.logger.info(row[0])
+                publish_json_to_queue((row[0]), a_title['title_number'])
+
+        #get the latest version of the register for a title number
+        else:
+            app.logger.info('get latest version of %s' % a_title['title_number'])
+            sql = "select record from records where (record->'data'->>'title_number')::text = '%s' order by id desc limit 1;" % \
+                  a_title['title_number']
+            result = db.engine.execute(sql)
+            for row in result:
+                app.logger.info(row[0])
+                publish_json_to_queue((row[0]), a_title['title_number'])
+
+    return 'ok', 200
