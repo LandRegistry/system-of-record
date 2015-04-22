@@ -118,7 +118,6 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual(remove_username_password('aprotocol://ausername:apassword@localhost:9876/'), 'aprotocol://localhost:9876/')
         self.assertEqual(remove_username_password(None), 'unknown endpoint')
 
-
-    # def test_remove_username_password(self):
-
+    def write_a_test_to_check_that_reg_data_not_in_log(self):
+        self.assertTrue(False)
 
