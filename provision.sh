@@ -16,6 +16,8 @@ EOF
 
 gem install --no-ri --no-rdoc puppet:3.7.5
 
+puppet module install puppetlabs-apt --version "<2.0.0"
+
 puppet module install puppetlabs-postgresql
 
 puppet apply /home/vagrant/srv/system-of-record/manifests/postgres.pp
