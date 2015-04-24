@@ -121,9 +121,9 @@ def republish():
     for a_title in republish_json['titles']:
 
         # get all versions of the register for a title number.  Key 'all-versions' contains a boolean.
-        if 'all-versions' in a_title and a_title['all-versions']:
+        if 'all_versions' in a_title and a_title['all_versions']:
             try:
-                get_all_versions_of_title(republish_json)
+                republish_all_versions_of_title(a_title)
             except:
                 error_count += 1
 
@@ -155,20 +155,22 @@ def republish_latest_version(republish_json):
 
         sql = "select record from records where (record->'data'->>'title_number')::text = '%s' order by id desc limit 1;" % \
               republish_json['title_number']
-        result = db.engine.execute(sql)
-
+        result = execute_query(sql)
         for row in result:
             row_count += 1
             publish_json_to_queue((row[0]), republish_json['title_number'])
 
         if row_count == 0:
-            raise Exception('title_number %s not found in database. ' % republish_json['title_number'])
+            raise NoRowFoundException('title_number %s not found in database. ' % republish_json['title_number'])
 
         app.logger.audit(
             make_log_msg(
                 'Republishing latest version of title to %s queue at %s. ' % (
                     app.config['RABBIT_QUEUE'], rabbit_endpoint()),
                     request, 'debug', republish_json['title_number']))
+
+        return 'republish_latest_version successful'  # for testing
+
     except Exception as err:
         error_message = 'Error republishing latest version of %s. ' % republish_json['title_number']
         app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
@@ -182,14 +184,14 @@ def republish_by_title_and_application_reference(republish_json):
 
         sql = "select record from records where (record->'data'->>'title_number')::text = '%s' and (record->'data'->>'application_reference')::text = '%s';" % (
             republish_json['title_number'], republish_json['application_reference'])
-        result = db.engine.execute(sql)
+        result = execute_query(sql)
 
         for row in result:
             row_count += 1
             publish_json_to_queue((row[0]), republish_json['title_number'])
 
         if row_count == 0:
-            raise Exception('application %s for title number %s not found in database. ' % (
+            raise NoRowFoundException('application %s for title number %s not found in database. ' % (
                 republish_json['application_reference'], republish_json['title_number']))
 
         app.logger.audit(
@@ -197,6 +199,9 @@ def republish_by_title_and_application_reference(republish_json):
                 'Republishing application %s to  %s queue at %s. ' % (
                     republish_json['application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
                 request, 'debug', republish_json['title_number']))
+
+        return 'republish_by_title_and_application_reference successful'  # for testing
+
     except Exception as err:
         error_message = 'Error republishing title %s with application reference %s. ' % (
             republish_json['title_number'], republish_json['application_reference'])
@@ -205,31 +210,42 @@ def republish_by_title_and_application_reference(republish_json):
         raise # re-raise error for counting errors.
 
 
-def get_all_versions_of_title(republish_json):
+def republish_all_versions_of_title(republish_json):
     try:
         row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
 
         sql = "select record from records where (record->'data'->>'title_number')::text = '%s';" % republish_json[
             'title_number']
-        result = db.engine.execute(sql)
+        result = execute_query(sql)
 
         for row in result:
             row_count += 1
             publish_json_to_queue((row[0]), republish_json['title_number'])
 
         if row_count == 0:
-            raise Exception('title_number %s not found in database .' % republish_json['title_number'])
+            raise NoRowFoundException('title_number %s not found in database .' % republish_json['title_number'])
 
         app.logger.audit(
             make_log_msg(
                 'Republishing all versions of title to %s queue at %s. ' % (app.config['RABBIT_QUEUE'], rabbit_endpoint()),
                 request, 'debug', republish_json['title_number']))
 
+        return 'republish_all_versions_of_title successful'  # for testing
+
     except Exception as err:
-            error_message = 'Error republishing title %s with application reference %s. ' % (
-                republish_json['title_number'], republish_json['application_reference'])
+            error_message = 'Error republishing title %s. ' % (
+                republish_json['title_number'])
             app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
             app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
             raise  # re-raise error for counting errors.
+
+
+def execute_query(sql):
+    return db.engine.execute(sql)
+
+class NoRowFoundException(Exception):
+    pass
+
+
 
 
