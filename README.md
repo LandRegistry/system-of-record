@@ -69,6 +69,31 @@ Note:  Use 0.0.0.0 when running from host.  Use 10.0.2.2 when calling from anoth
 curl -X POST -d '{"sig":"some_signed_data","data":{"title_number": "DN1", "application_reference":"ABR123"}}' -H "Content-Type: application/json" http://127.0.0.1:5001/insert
 ```
 
+##How to republish messages for stored titles:
+
+###Replublish latest version of one title:
+
+```
+curl -X POST -d '{"titles": [{"title_number":"DN1"}]}' -H "Content-Type: application/json" http://127.0.0.1:5001/republish
+```
+
+###Replublish a specific version of a title:
+
+```
+curl -X POST -d '{"titles": [{"title_number":"DN1", "application_reference": "ABR123"}]}' -H "Content-Type: application/json" http://127.0.0.1:5001/republish
+```
+
+###Republish more than one title in a single message:
+```
+curl -X POST -d '{"titles": [{"title_number":"DN1", "application_reference": "ABR123"}, {"title_number":"DN2", "application_reference": "ABR1234"}, {"title_number":"DN3", "application_reference": "ABR12345"} ]}' -H "Content-Type: application/json" http://127.0.0.1:5001/republish
+```
+
+###Republish all versions of a title:
+```
+curl -X POST -d '{"titles": [{"title_number":"DN1", "all_versions":true}]}' -H "Content-Type: application/json" http://127.0.0.1:5001/republish
+```
+
+
 ##How to check that the service is running:
 
 ```

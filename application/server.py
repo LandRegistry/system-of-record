@@ -29,24 +29,25 @@ def insert():
 
         # Publish to queue upon successful insertion
         publish_json_to_queue(request.get_json(), get_title_number(request))
-        rabbit_endpoint = remove_username_password(app.config['RABBIT_ENDPOINT'])
         app.logger.audit(
             make_log_msg(
-                'Record successfully published to %s queue at %s. ' % (app.config['RABBIT_QUEUE'], rabbit_endpoint),
+                'Record successfully published to %s queue at %s. ' % (app.config['RABBIT_QUEUE'], rabbit_endpoint()),
                     request, 'debug', title_number))
 
         db.session.commit()
 
     except IntegrityError as err:
         db.session.rollback()
-        error_message = 'Integrity error. Check that signature is unique. '
-        app.logger.exception(make_log_msg(error_message, request, 'error', title_number))
+        error_message = 'Integrity error. Check that title number and application reference are unique. '
+        app.logger.error(make_log_msg(error_message, request, 'error', title_number))
+        app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
         return error_message, 409
 
     except Exception as err:
         db.session.rollback()
         error_message = 'Service failed to insert to the database. '
-        app.logger.exception(make_log_msg(error_message, request, 'error', title_number))
+        app.logger.error(make_log_msg(error_message, request, 'error', title_number))
+        app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
         return error_message, 500
 
     postgres_endpoint = remove_username_password(app.config['SQLALCHEMY_DATABASE_URI'])
@@ -103,3 +104,148 @@ def remove_username_password(endpoint_string):
         return re.sub('://[^:]+:[^@]+@', '://', endpoint_string)
     except:
         return "unknown endpoint"
+
+
+def rabbit_endpoint():
+    #We don't want to include the username and password for the endpoint in logs
+    return remove_username_password(app.config['RABBIT_ENDPOINT'])
+
+
+@app.route("/republish", methods=["POST"])
+def republish():
+    #Consider Indexes on Expressions to make selects more efficient.
+    error_count = 0
+    total_count = 0
+    republish_json = request.get_json()
+    # Now loop through the json elements
+    for a_title in republish_json['titles']:
+
+        # get all versions of the register for a title number.  Key 'all-versions' contains a boolean.
+        if 'all_versions' in a_title and a_title['all_versions']:
+            try:
+                republish_all_versions_of_title(a_title)
+            except:
+                error_count += 1
+
+        # get the register by title_number and application_reference
+        elif 'application_reference' in a_title:
+            try:
+                republish_by_title_and_application_reference(a_title)
+            except:
+                error_count += 1
+
+        #get the latest version of the register for a title number
+        else:
+            try:
+                republish_latest_version(a_title)
+            except:
+                error_count += 1
+
+        total_count += 1
+
+    if error_count != 0:
+        return 'Completed republish.  %i titles in JSON. Number of errors: %i' % (total_count, error_count), 202
+    else:
+        return 'No errors.  Number of titles in JSON: %i' % total_count, 200
+
+
+def republish_latest_version(republish_json):
+    try:
+        row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
+
+        sql = "select record from records where (record->'data'->>'title_number')::text = '%s' order by id desc limit 1;" % \
+              republish_json['title_number']
+        result = execute_query(sql)
+        for row in result:
+            row_count += 1
+            publish_json_to_queue((row[0]), republish_json['title_number'])
+
+        if row_count == 0:
+            raise NoRowFoundException('title_number %s not found in database. ' % republish_json['title_number'])
+
+        app.logger.audit(
+            make_log_msg(
+                'Republishing latest version of title to %s queue at %s. ' % (
+                    app.config['RABBIT_QUEUE'], rabbit_endpoint()),
+                    request, 'debug', republish_json['title_number']))
+
+        return 'republish_latest_version successful'  # for testing
+
+    except Exception as err:
+        error_message = 'Error republishing latest version of %s. ' % republish_json['title_number']
+        app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
+        app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
+        raise # re-raise error for counting errors.
+
+
+def republish_by_title_and_application_reference(republish_json):
+    try:
+        row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
+
+        sql = "select record from records where (record->'data'->>'title_number')::text = '%s' and (record->'data'->>'application_reference')::text = '%s';" % (
+            republish_json['title_number'], republish_json['application_reference'])
+        result = execute_query(sql)
+
+        for row in result:
+            row_count += 1
+            publish_json_to_queue((row[0]), republish_json['title_number'])
+
+        if row_count == 0:
+            raise NoRowFoundException('application %s for title number %s not found in database. ' % (
+                republish_json['application_reference'], republish_json['title_number']))
+
+        app.logger.audit(
+            make_log_msg(
+                'Republishing application %s to  %s queue at %s. ' % (
+                    republish_json['application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
+                request, 'debug', republish_json['title_number']))
+
+        return 'republish_by_title_and_application_reference successful'  # for testing
+
+    except Exception as err:
+        error_message = 'Error republishing title %s with application reference %s. ' % (
+            republish_json['title_number'], republish_json['application_reference'])
+        app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
+        app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
+        raise # re-raise error for counting errors.
+
+
+def republish_all_versions_of_title(republish_json):
+    try:
+        row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
+
+        sql = "select record from records where (record->'data'->>'title_number')::text = '%s';" % republish_json[
+            'title_number']
+        result = execute_query(sql)
+
+        for row in result:
+            row_count += 1
+            publish_json_to_queue((row[0]), republish_json['title_number'])
+
+        if row_count == 0:
+            raise NoRowFoundException('title_number %s not found in database .' % republish_json['title_number'])
+
+        app.logger.audit(
+            make_log_msg(
+                'Republishing all versions of title to %s queue at %s. ' % (app.config['RABBIT_QUEUE'], rabbit_endpoint()),
+                request, 'debug', republish_json['title_number']))
+
+        return 'republish_all_versions_of_title successful'  # for testing
+
+    except Exception as err:
+            error_message = 'Error republishing title %s. ' % (
+                republish_json['title_number'])
+            app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
+            app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
+            raise  # re-raise error for counting errors.
+
+
+def execute_query(sql):
+    return db.engine.execute(sql)
+
+class NoRowFoundException(Exception):
+    pass
+
+
+
+

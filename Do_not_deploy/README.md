@@ -26,7 +26,7 @@ source ~/venvs/system-of-record/bin/activate
 ```
 
 ```
-./run.sh -d
+python3 run_tester.py
 ```
 
 
