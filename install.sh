@@ -23,6 +23,9 @@ case "$DEPLOY_ENVIRONMENT" in
   preview)
   SUPERVISOR_ENV="SETTINGS=\"config.PreviewConfig\""
   ;;
+  release)
+  SUPERVISOR_ENV="SETTINGS=\"config.ReleaseConfig\""
+  ;;
   preproduction)
   SUPERVISOR_ENV="SETTINGS=\"config.PreproductionConfig\""
   ;;
