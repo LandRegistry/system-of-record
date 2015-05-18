@@ -9,3 +9,8 @@ if [ -d /usr/pgsql-9.3/bin ]; then
   export PATH=$PATH:/usr/pgsql-9.3/bin
 fi
 pip install -r requirements.txt
+
+#Create the logging directory as it is required by default
+if [ ! -d $dir/logs ]; then
+	mkdir $dir/logs
+fi
