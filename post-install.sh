@@ -2,6 +2,10 @@
 
 dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $dir
+
+#Re-link venv to python in case anything's different
+find ~/venvs/system-of-record -type l -delete
+virtualenv -p python3 ~/venvs/system-of-record
 source ~/venvs/system-of-record/bin/activate
 
 #Set environment variable in supervisord according to deploying environment (default to development)
