@@ -7,6 +7,9 @@ import traceback
 from sqlalchemy.exc import IntegrityError
 from python_logging.logging_utils import linux_user, client_ip, log_dir
 import re
+import os
+import os.path
+import json
 
 
 
@@ -240,8 +243,23 @@ def republish_all_versions_of_title(republish_json):
             raise  # re-raise error for counting errors.
 
 
+@app.route("/republisheverything")
+def republish_everything():
+    # check that a republish job is not already underway.
+    PATH='./republish_progress.json'
+    if os.path.isfile(PATH):
+        return "Republish job already in progress"
+    else:
+        # Create a new job file
+        new_job_data = {"current_id": 0, "last_id": 200000}
+        with open(PATH, 'w') as f:
+            json.dump(new_job_data, f, ensure_ascii=False)
+        return "New republish job submitted"
+
+
 def execute_query(sql):
     return db.engine.execute(sql)
+
 
 class NoRowFoundException(Exception):
     pass
