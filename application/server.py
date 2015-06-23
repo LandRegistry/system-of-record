@@ -62,7 +62,7 @@ def insert():
 
 
 
-def publish_json_to_queue(json_string, title_number):
+def publish_json_to_queue(request_json, title_number):
     # Next write to queue for consumption by register publisher
     # By default messages sent to exchanges are persistent (delivery_mode=2),
     # and queues and exchanges are durable.
@@ -79,7 +79,7 @@ def publish_json_to_queue(json_string, title_number):
 
     # Producers are used to publish messages.
     producer = Producer(connection)
-    producer.publish(json_string, exchange=exchange, routing_key=queue.routing_key, serializer='json',
+    producer.publish(request_json, exchange=exchange, routing_key=queue.routing_key, serializer='json',
                      headers={'title_number': title_number})
 
 
@@ -248,12 +248,19 @@ def republish_everything():
     # check that a republish job is not already underway.
     PATH='./republish_progress.json'
     if os.path.isfile(PATH):
+        audit_message = 'New republish job attempted.  However, one already in progress. '
+        app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
         return "Republish job already in progress"
     else:
+        #Find the last record id
+        signed_titles_instance = db.session.query(SignedTitles).order_by(SignedTitles.id.desc()).first()
+        last_id = signed_titles_instance.id
         # Create a new job file
-        new_job_data = {"current_id": 0, "last_id": 200000}
+        new_job_data = {"current_id": 0, "last_id": last_id}
         with open(PATH, 'w') as f:
             json.dump(new_job_data, f, ensure_ascii=False)
+        audit_message = 'New republish everything job submitted. '
+        app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
         return "New republish job submitted"
 
 
