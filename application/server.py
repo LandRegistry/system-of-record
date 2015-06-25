@@ -2,7 +2,7 @@ from application.models import SignedTitles
 from application import app
 from application import db
 from flask import request
-from kombu import Connection, Producer, Exchange, Queue
+# from kombu import Connection, Producer, Exchange, Queue
 import traceback
 from sqlalchemy.exc import IntegrityError
 from python_logging.logging_utils import linux_user, client_ip, log_dir
@@ -64,21 +64,7 @@ def insert():
 
 def publish_json_to_queue(request_json, title_number):
     # Next write to queue for consumption by register publisher
-    # By default messages sent to exchanges are persistent (delivery_mode=2),
-    # and queues and exchanges are durable.
-    # 'confirm_publish' means that the publish() call will wait for an acknowledgement.
-    exchange = Exchange()
-    connection = Connection(hostname=app.config['RABBIT_ENDPOINT'], transport_options={'confirm_publish': True})
-
-    # Create a queue bound to the connection.
-    # queue = Queue('system_of_record', exchange, routing_key='system_of_record')(connection)
-    queue = Queue(app.config['RABBIT_QUEUE'],
-                  exchange,
-                  routing_key=app.config['RABBIT_ROUTING_KEY'])(connection)
-    queue.declare()
-
-    # Producers are used to publish messages.
-    producer = Producer(connection)
+    from application import producer, exchange, queue
     producer.publish(request_json, exchange=exchange, routing_key=queue.routing_key, serializer='json',
                      headers={'title_number': title_number})
 
