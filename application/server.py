@@ -59,25 +59,19 @@ def insert():
 
 
 
-def publish_json_to_queue(json_string, title_number):
+def publish_json_to_queue(request_json, title_number):
     # Next write to queue for consumption by register publisher
-    # By default messages sent to exchanges are persistent (delivery_mode=2),
-    # and queues and exchanges are durable.
-    # 'confirm_publish' means that the publish() call will wait for an acknowledgement.
-    exchange = Exchange()
-    connection = Connection(hostname=app.config['RABBIT_ENDPOINT'], transport_options={'confirm_publish': True})
+    from application import producer, exchange, queue, connection
 
-    # Create a queue bound to the connection.
-    # queue = Queue('system_of_record', exchange, routing_key='system_of_record')(connection)
-    queue = Queue(app.config['RABBIT_QUEUE'],
-                  exchange,
-                  routing_key=app.config['RABBIT_ROUTING_KEY'])(connection)
-    queue.declare()
+    def errback(exc, interval):
+        app.logger.error('Error publishing to queue: %r', exc, exc_info=1)
+        app.logger.info('Retry publishing in %s seconds.', interval)
 
-    # Producers are used to publish messages.
-    producer = Producer(connection)
-    producer.publish(json_string, exchange=exchange, routing_key=queue.routing_key, serializer='json',
+    # connection.ensure will re-establish the connection and retry, if the connection is lost.
+    publish_to_sor = connection.ensure(producer, producer.publish, errback=errback, max_retries=10)
+    publish_to_sor(request_json, exchange=exchange, routing_key=queue.routing_key, serializer='json',
                      headers={'title_number': title_number})
+
 
 
 def make_log_msg(message, request, log_level, title_number):
