@@ -10,7 +10,7 @@ app = Flask(__name__)
 db = SQLAlchemy(app)
 app.config.from_object(os.environ.get('SETTINGS'))
 
-if os.environ.get('SETTINGS') != "config.UnitTestConfig"
+if os.environ.get('SETTINGS') != "config.UnitTestConfig":
     #Configure the RabbitMQ connection, queue and producer.
     # By default messages sent to exchanges are persistent (delivery_mode=2),
     # and queues and exchanges are durable.
