@@ -64,9 +64,17 @@ def insert():
 
 def publish_json_to_queue(request_json, title_number):
     # Next write to queue for consumption by register publisher
-    from application import producer, exchange, queue
-    producer.publish(request_json, exchange=exchange, routing_key=queue.routing_key, serializer='json',
+    from application import producer, exchange, system_of_record_queue, connection
+
+    def errback(exc, interval):
+        app.logger.error('Error publishing to queue: %r', exc, exc_info=1)
+        app.logger.info('Retry publishing in %s seconds.', interval)
+
+    # connection.ensure will re-establish the connection and retry, if the connection is lost.
+    publish_to_sor = connection.ensure(producer, producer.publish, errback=errback, max_retries=10)
+    publish_to_sor(request_json, exchange=exchange, routing_key=system_of_record_queue.routing_key, serializer='json',
                      headers={'title_number': title_number})
+
 
 
 def make_log_msg(message, request, log_level, title_number):
