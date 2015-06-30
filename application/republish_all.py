@@ -13,9 +13,9 @@ TEMP_PATH = './republish_progress_tmp.json'
 
 def republish_all_titles(app, db):
     # Thread to check the file for job progress and act accordingly.
-    # process_thread = threading.Thread(target=check_for_republish_all_titles_file, args=(app, db, ))
-    # process_thread.setDaemon(True)
-    # process_thread.start()
+    process_thread = threading.Thread(target=check_for_republish_all_titles_file, args=(app, db, ))
+    process_thread.setDaemon(True)
+    process_thread.start()
 
     # Thread to query the REPUBLISH_EVERYTHING_QUEUE and process any jobs found.
     process_thread = threading.Thread(target=check_republish_everything_queue, args=(app, ))
@@ -30,7 +30,7 @@ def check_for_republish_all_titles_file(app, db):
     if republish_all_titles_file_exists:
         process_republish_all_titles_file(app, db)
         remove_republish_all_titles_file(app)
-        app.logger.audit("republish everything job completed.")
+        app.logger.audit("All titles added to the republish_everything queue.")
         check_for_republish_all_titles_file(app, db)
     else:
         time.sleep(5)
