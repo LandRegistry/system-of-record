@@ -26,4 +26,3 @@ if os.environ.get('SETTINGS') != "config.UnitTestConfig":
 
     # Check for and process republishing events.
     republish_all_titles(app, db)
-

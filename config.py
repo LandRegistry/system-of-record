@@ -1,6 +1,7 @@
 import os
 
 class Config(object):
+    # format is dialect+driver://username:password@host:port/database
     SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI', 'postgresql://systemofrecord:systemofrecord@localhost/systemofrecord')
     RABBIT_ENDPOINT = os.getenv('RABBIT_ENDPOINT', 'amqp://mqpublisher:mqpublisherpassword@localhost:5672//')
     RABBIT_QUEUE = os.getenv('RABBIT_QUEUE', 'system_of_record')
@@ -12,7 +13,6 @@ class Config(object):
     DEBUG = False
 
 class DevelopmentConfig(Config):
-    # format is dialect+driver://username:password@host:port/database
     DEBUG = True
 
 class UnitTestConfig(Config):
