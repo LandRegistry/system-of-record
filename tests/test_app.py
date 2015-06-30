@@ -225,7 +225,7 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_publish.side_effect = self.do_nothing
         mock_execute_query.side_effect = self.one_row_response
         self.assertEquals('republish_by_title_and_application_reference successful',
-                          republish_by_title_and_application_reference({'title_number': 'DN1', 'application_reference': 'ABR456'}))
+                          republish_by_title_and_application_reference({'title_number': 'DN1', 'application_reference': 'ABR456'}, True))
 
 
     @mock.patch('application.server.publish_json_to_queue')
@@ -250,7 +250,7 @@ class TestSequenceFunctions(unittest.TestCase):
     def test_republish_by_title_and_application_reference_error(self, mock_execute_query, mock_publish):
         mock_publish.side_effect = self.create_exception
         mock_execute_query.side_effect = self.one_row_response
-        self.assertRaises(TestException, republish_by_title_and_application_reference, {'title_number': 'DN1', 'application_reference': 'ABR456'} )
+        self.assertRaises(TestException, republish_by_title_and_application_reference, {'title_number': 'DN1', 'application_reference': 'ABR456'}, True)
 
 
     @mock.patch('application.server.publish_json_to_queue')

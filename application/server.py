@@ -127,7 +127,7 @@ def republish():
         # get the register by title_number and application_reference
         elif 'application_reference' in a_title:
             try:
-                republish_by_title_and_application_reference(a_title)
+                republish_by_title_and_application_reference(a_title, True)
             except:
                 error_count += 1
 
@@ -175,7 +175,7 @@ def republish_latest_version(republish_json):
         raise # re-raise error for counting errors.
 
 
-def republish_by_title_and_application_reference(republish_json):
+def republish_by_title_and_application_reference(republish_json, perform_audit):
     try:
         row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
 
@@ -191,11 +191,12 @@ def republish_by_title_and_application_reference(republish_json):
             raise NoRowFoundException('application %s for title number %s not found in database. ' % (
                 republish_json['application_reference'], republish_json['title_number']))
 
-        app.logger.audit(
-            make_log_msg(
-                'Republishing application %s to  %s queue at %s. ' % (
-                    republish_json['application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
-                request, 'debug', republish_json['title_number']))
+        if perform_audit: # No audit is system performing a full republish.
+            app.logger.audit(
+                make_log_msg(
+                    'Republishing application %s to  %s queue at %s. ' % (
+                        republish_json['application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
+                    request, 'debug', republish_json['title_number']))
 
         return 'republish_by_title_and_application_reference successful'  # for testing
 

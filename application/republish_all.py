@@ -10,6 +10,8 @@ PATH = './republish_progress.json'
 
 TEMP_PATH = './republish_progress_tmp.json'
 
+JOB_COMPLETE_FLAG = 'all done'
+
 
 def republish_all_titles(app, db):
     # Thread to check the file for job progress and act accordingly.
@@ -28,9 +30,9 @@ def republish_all_titles(app, db):
 def check_for_republish_all_titles_file(app, db):
     republish_all_titles_file_exists = os.path.isfile(PATH)
     if republish_all_titles_file_exists:
+        app.logger.audit('processing a request to republish all titles. ')
         process_republish_all_titles_file(app, db)
         remove_republish_all_titles_file(app)
-        app.logger.audit("All titles added to the republish_everything queue.")
         check_for_republish_all_titles_file(app, db)
     else:
         time.sleep(5)
@@ -47,7 +49,6 @@ def process_republish_all_titles_file(app, db):
                                    re_exchange,
                                    routing_key=app.config['REPUBLISH_EVERYTHING_ROUTING_KEY'])(re_connection)
     re_queue.declare()
-    re_channel = re_connection.channel()
     re_producer = Producer(re_connection)
 
     with open(PATH, "r") as read_progress_file:
@@ -56,6 +57,14 @@ def process_republish_all_titles_file(app, db):
 
     current_id = progess_data['current_id']
     last_id = progess_data['last_id']
+
+    def errback(exc, interval):
+        app.logger.error('Error publishing to queue: %r', exc, exc_info=1)
+        app.logger.info('Retry publishing in %s seconds.', interval)
+
+    # connection.ensure will re-establish the connection and retry, if the connection is lost.
+    publish_to_repubish_everything = re_connection.ensure(re_producer, re_producer.publish, errback=errback,
+                                                          max_retries=10)
 
     while current_id <= last_id:
         #get the title_number and application_reference for the id
@@ -66,13 +75,6 @@ def process_republish_all_titles_file(app, db):
                 application_reference = title_dict['data']['application_reference']
                 queue_json = {"title_number": title_number, "application_reference": application_reference}
 
-                def errback(exc, interval):
-                    app.logger.error('Error publishing to queue: %r', exc, exc_info=1)
-                    app.logger.info('Retry publishing in %s seconds.', interval)
-
-                # connection.ensure will re-establish the connection and retry, if the connection is lost.
-                publish_to_repubish_everything = re_connection.ensure(re_producer, re_producer.publish, errback=errback,
-                                                                   max_retries=10)
                 publish_to_repubish_everything(queue_json, exchange=re_exchange,
                                                routing_key=re_queue.routing_key, serializer='json',
                                                headers={'title_number': title_number})
@@ -103,6 +105,11 @@ def process_republish_all_titles_file(app, db):
         else:
             log_republish_error('Can not rename temp file after processing id: %s' % current_id, app)
 
+
+    last_job_notify_json = {"title_number": JOB_COMPLETE_FLAG, "application_reference": time.strftime("%b %d %Y %H:%M:%S") }
+    publish_to_repubish_everything(last_job_notify_json, exchange=re_exchange,
+                                   routing_key=re_queue.routing_key, serializer='json',
+                                   headers={'title_number': title_number})
     re_connection.close()
 
 
@@ -128,9 +135,15 @@ def remove_republish_all_titles_file(app):
 
 
 def process_message(body, message):
+    from application import app
     from application.server import republish_by_title_and_application_reference
-    republish_by_title_and_application_reference(body)
-    message.ack()
+
+    if body['title_number'] == JOB_COMPLETE_FLAG:
+        app.logger.audit('Republish everything job completed at %s' % body['application_reference'])
+        message.ack()
+    else:
+        republish_by_title_and_application_reference(body, False)
+        message.ack()
 
 
 def check_republish_everything_queue(app):
