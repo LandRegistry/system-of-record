@@ -6,10 +6,10 @@ class Config(object):
 
 class DevelopmentConfig(Config):
     # format is dialect+driver://username:password@host:port/database
-    SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI', 'postgresql://systemofrecord:systemofrecord@localhost/systemofrecord')
-    RABBIT_ENDPOINT = os.getenv('RABBIT_ENDPOINT', 'amqp://mqpublisher:mqpublisherpassword@localhost:5672//')
-    RABBIT_QUEUE = os.getenv('RABBIT_QUEUE', 'system_of_record')
-    RABBIT_ROUTING_KEY = os.getenv('RABBIT_ROUTING_KEY', 'system_of_record')
+    SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
+    RABBIT_ENDPOINT = os.getenv('RABBIT_ENDPOINT')
+    RABBIT_QUEUE = os.getenv('RABBIT_QUEUE')
+    RABBIT_ROUTING_KEY = os.getenv('RABBIT_ROUTING_KEY')
     DEBUG = True
 
 class UnitTestConfig(Config):
