@@ -38,6 +38,18 @@ def check_for_republish_all_titles_file(app, db):
 
 
 def process_republish_all_titles_file(app, db):
+
+    # Setup Rabbit queue connections
+    from kombu import Connection, Producer, Exchange, Queue
+    re_exchange = Exchange()
+    re_connection = Connection(hostname=app.config['REPUBLISH_EVERYTHING_ENDPOINT'], transport_options={'confirm_publish': True})
+    re_queue = Queue(app.config['REPUBLISH_EVERYTHING_QUEUE'],
+                                   re_exchange,
+                                   routing_key=app.config['REPUBLISH_EVERYTHING_ROUTING_KEY'])(re_connection)
+    re_queue.declare()
+    re_channel = re_connection.channel()
+    re_producer = Producer(re_connection)
+
     with open(PATH, "r") as read_progress_file:
         progess_data = json.load(read_progress_file)
         read_progress_file.close()
@@ -46,8 +58,6 @@ def process_republish_all_titles_file(app, db):
     last_id = progess_data['last_id']
 
     while current_id <= last_id:
-        #Set up the queue and connection here, and tidy up in the finally statement.
-        from application import connection, producer, exchange, republish_everything_queue
         #get the title_number and application_reference for the id
         title_dict = get_title_detail(db, current_id)
         if title_dict:
@@ -61,10 +71,10 @@ def process_republish_all_titles_file(app, db):
                     app.logger.info('Retry publishing in %s seconds.', interval)
 
                 # connection.ensure will re-establish the connection and retry, if the connection is lost.
-                publish_to_repubish_everything = connection.ensure(producer, producer.publish, errback=errback,
+                publish_to_repubish_everything = re_connection.ensure(re_producer, re_producer.publish, errback=errback,
                                                                    max_retries=10)
-                publish_to_repubish_everything(queue_json, exchange=exchange,
-                                               routing_key=republish_everything_queue.routing_key, serializer='json',
+                publish_to_repubish_everything(queue_json, exchange=re_exchange,
+                                               routing_key=re_queue.routing_key, serializer='json',
                                                headers={'title_number': title_number})
 
             except Exception as err:
@@ -92,6 +102,8 @@ def process_republish_all_titles_file(app, db):
                 time.sleep(.1)
         else:
             log_republish_error('Can not rename temp file after processing id: %s' % current_id, app)
+
+    re_connection.close()
 
 
 def get_title_detail(db, the_id):
@@ -122,22 +134,28 @@ def process_message(body, message):
 
 
 def check_republish_everything_queue(app):
-    # Set up the queue and connection here, and tidy up in the finally statement.
-    from application import republish_everything_queue, channel
-    from kombu import Consumer
+    # Setup Rabbit queue connections
+    from kombu import Connection, Exchange, Queue, Consumer
+    re_exchange = Exchange()
+    re_connection = Connection(hostname=app.config['REPUBLISH_EVERYTHING_ENDPOINT'], transport_options={'confirm_publish': True})
+    re_queue = Queue(app.config['REPUBLISH_EVERYTHING_QUEUE'],
+                     re_exchange,
+                     routing_key=app.config['REPUBLISH_EVERYTHING_ROUTING_KEY'])(re_connection)
+    re_queue.declare()
+    re_channel = re_connection.channel()
 
     def errback(exc, interval):
         app.logger.error('Error connecting to queue: %r', exc, exc_info=1)
         app.logger.info('Retry connection in %s seconds.', interval)
 
-    consumer = Consumer(channel, queues=republish_everything_queue, callbacks=[process_message], accept=['json'])
-    consumer.consume()
+    re_consumer = Consumer(re_channel, queues=re_queue, callbacks=[process_message], accept=['json'])
+    re_consumer.consume()
     # Loop "forever", as a service.
     # N.B.: if there is a serious network failure or the like then this will keep logging errors!
     while True:
         try:
-            consumer.connection.ensure_connection(errback=errback, max_retries=10)
-            consumer.connection.drain_events()
+            re_consumer.connection.ensure_connection(errback=errback, max_retries=10)
+            re_consumer.connection.drain_events()
         except Exception as e:
             log_republish_error("Exception trying to query REPUBLISH_EVERYTHING_QUEUE: %s" % e.args[0], app)
             # If we ignore the problem, perhaps it will go away ...
