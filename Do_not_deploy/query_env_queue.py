@@ -5,18 +5,26 @@ import os
 app = Flask(__name__)
 app.config.from_object(os.environ.get('SETTINGS'))
 
+
+# env_endpoint = app.config['REPUBLISH_EVERYTHING_ENDPOINT']
+# env_queue = app.config['REPUBLISH_EVERYTHING_QUEUE']
+
+env_endpoint = app.config['RABBIT_ENDPOINT']
+env_queue = app.config['RABBIT_QUEUE']
+
+#: By default messages sent to exchanges are persistent (delivery_mode=2),
+#: and queues and exchanges are durable.
+exchange = Exchange()
+connection = Connection(env_endpoint)
+
+# Create/access a queue bound to the connection.
+queue = Queue(env_queue, exchange, routing_key=env_queue)(connection)
+queue.declare()
+
+
 @app.route("/getnextqueuemessage")
 #Gets the next message from target queue.  Returns the signed JSON.
 def get_last_queue_message():
-    #: By default messages sent to exchanges are persistent (delivery_mode=2),
-    #: and queues and exchanges are durable.
-    exchange = Exchange()
-    connection = Connection(app.config['REPUBLISH_EVERYTHING_ENDPOINT'])
-
-    # Create/access a queue bound to the connection.
-    queue = Queue(app.config['REPUBLISH_EVERYTHING_QUEUE'], exchange, routing_key='REPUBLISH_EVERYTHING_QUEUE')(connection)
-    queue.declare()
-
     message = queue.get()
 
     if message:
@@ -32,18 +40,11 @@ def get_last_queue_message():
 #Gets the next message from target queue.  Returns the signed JSON.
 def remove_all_messages():
     while True:
-        exchange = Exchange()
-        connection = Connection(app.config['REPUBLISH_EVERYTHING_ENDPOINT'])
-
-        queue = Queue(app.config['REPUBLISH_EVERYTHING_QUEUE'], exchange, routing_key='REPUBLISH_EVERYTHING_QUEUE')(connection)
-        queue.declare()
-
         message = queue.get()
         if message:
             message.ack() #acknowledges message, ensuring its removal.
         else:
             break
-
     return "done", 202
 
 
