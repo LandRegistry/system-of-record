@@ -24,13 +24,11 @@ def republish_all_titles(app, db):
     process_thread.setDaemon(True)
     process_thread.start()
 
-    pass
-
 
 def check_for_republish_all_titles_file(app, db):
     republish_all_titles_file_exists = os.path.isfile(PATH)
     if republish_all_titles_file_exists:
-        app.logger.audit('processing a request to republish all titles. ')
+        app.logger.audit('Republish everything: processing a request to republish all titles. ')
         process_republish_all_titles_file(app, db)
         remove_republish_all_titles_file(app)
         check_for_republish_all_titles_file(app, db)
@@ -65,7 +63,6 @@ def process_republish_all_titles_file(app, db):
     # connection.ensure will re-establish the connection and retry, if the connection is lost.
     publish_to_repubish_everything = re_connection.ensure(re_producer, re_producer.publish, errback=errback,
                                                           max_retries=10)
-
     while current_id <= last_id:
         #get the title_number and application_reference for the id
         title_dict = get_title_detail(db, current_id)
@@ -78,6 +75,10 @@ def process_republish_all_titles_file(app, db):
                 publish_to_repubish_everything(queue_json, exchange=re_exchange,
                                                routing_key=re_queue.routing_key, serializer='json',
                                                headers={'title_number': title_number})
+
+                progress_count = progess_data['count']
+                progress_count += 1
+                progess_data['count'] = progress_count
 
             except Exception as err:
                 log_republish_error(
@@ -105,11 +106,9 @@ def process_republish_all_titles_file(app, db):
         else:
             log_republish_error('Can not rename temp file after processing id: %s' % current_id, app)
 
-
     last_job_notify_json = {"title_number": JOB_COMPLETE_FLAG, "application_reference": time.strftime("%b %d %Y %H:%M:%S") }
     publish_to_repubish_everything(last_job_notify_json, exchange=re_exchange,
-                                   routing_key=re_queue.routing_key, serializer='json',
-                                   headers={'title_number': title_number})
+                                   routing_key=re_queue.routing_key, serializer='json')
     re_connection.close()
 
 
@@ -126,6 +125,11 @@ def remove_republish_all_titles_file(app):
     max_tries = 100
     for i in range(max_tries):
         try:
+            with open(PATH, "r") as read_progress_file:
+                progess_data = json.load(read_progress_file)
+                read_progress_file.close()
+            app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing.' % (
+                progess_data['last_id'], progess_data['count']))
             os.remove(PATH)
             break
         except:
@@ -139,7 +143,7 @@ def process_message(body, message):
     from application.server import republish_by_title_and_application_reference
 
     if body['title_number'] == JOB_COMPLETE_FLAG:
-        app.logger.audit('Republish everything job completed at %s' % body['application_reference'])
+        app.logger.audit('Republish everything: job completed at %s' % body['application_reference'])
         message.ack()
     else:
         republish_by_title_and_application_reference(body, False)
@@ -177,5 +181,6 @@ def check_republish_everything_queue(app):
 
 def log_republish_error(message, app):
     from python_logging.logging_utils import linux_user
-    message = message + 'Signed in as: %s. ' % linux_user()
+    message = message + ' Signed in as: %s. ' % linux_user()
     app.logger.error(message)
+    return message # return is for testing

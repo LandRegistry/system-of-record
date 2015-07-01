@@ -251,7 +251,7 @@ def republish_everything():
         signed_titles_instance = db.session.query(SignedTitles).order_by(SignedTitles.id.desc()).first()
         last_id = signed_titles_instance.id
         # Create a new job file
-        new_job_data = {"current_id": 0, "last_id": last_id}
+        new_job_data = {"current_id": 0, "last_id": last_id, "count": 0}
         with open(PATH, 'w') as f:
             json.dump(new_job_data, f, ensure_ascii=False)
         audit_message = 'New republish everything job submitted. '
