@@ -38,7 +38,6 @@ def check_for_republish_all_titles_file(app, db):
 
 
 def process_republish_all_titles_file(app, db):
-
     # Setup Rabbit queue connections
     from kombu import Connection, Producer, Exchange, Queue
     re_exchange = Exchange()
@@ -150,6 +149,11 @@ def process_message(body, message):
         message.ack()
 
 
+def running_as_service():
+    #Used by unit testing to stop looping
+    return True
+
+
 def check_republish_everything_queue(app):
     # Setup Rabbit queue connections
     from kombu import Connection, Exchange, Queue, Consumer
@@ -169,7 +173,7 @@ def check_republish_everything_queue(app):
     re_consumer.consume()
     # Loop "forever", as a service.
     # N.B.: if there is a serious network failure or the like then this will keep logging errors!
-    while True:
+    while running_as_service():
         try:
             re_consumer.connection.ensure_connection(errback=errback, max_retries=10)
             re_consumer.connection.drain_events()

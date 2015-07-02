@@ -245,18 +245,21 @@ def republish_everything():
     if os.path.isfile(PATH):
         audit_message = 'New republish job attempted.  However, one already in progress. '
         app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
-        return "Republish job already in progress"
+        return "Republish job already in progress", 200
     else:
-        #Find the last record id
-        signed_titles_instance = db.session.query(SignedTitles).order_by(SignedTitles.id.desc()).first()
-        last_id = signed_titles_instance.id
+        last_id = get_last_system_of_record_id()
         # Create a new job file
         new_job_data = {"current_id": 0, "last_id": last_id, "count": 0}
         with open(PATH, 'w') as f:
             json.dump(new_job_data, f, ensure_ascii=False)
         audit_message = 'New republish everything job submitted. '
         app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
-        return "New republish job submitted"
+        return "New republish job submitted", 200
+
+
+def get_last_system_of_record_id():
+    signed_titles_instance = db.session.query(SignedTitles).order_by(SignedTitles.id.desc()).first()
+    return signed_titles_instance.id
 
 
 def execute_query(sql):

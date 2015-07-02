@@ -50,22 +50,82 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_repub.side_effect = self.do_nothing
         self.assertRaises(TestException, check_for_republish_all_titles_file, app, db)
 
-    def test_remove_republish_all_titles_file(self):
-        self.write_file() # creates the test file.
+    @mock.patch('application.app.logger.audit')
+    def test_remove_republish_all_titles_file(self, mock_audit):
+        self.write_file()  # creates the test file.
         remove_republish_all_titles_file(app)
+        mock_audit.assert_called_once_with(
+            'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
         self.assertFalse(os.path.isfile(PATH))
 
-    # def test_process_republish_all_titles_file(self):
-    #     try:
-    #         self.write_file()
-    #         process_republish_all_titles_file(app, db)
-    #     except Exception as err:
-    #         app.logger.error(str(err))
-    #         self.fail("myFunc() raised ExceptionType unexpectedly!")
+    @mock.patch('kombu.Exchange')
+    @mock.patch('kombu.Connection')
+    @mock.patch('kombu.Queue')
+    @mock.patch('kombu.Producer')
+    @mock.patch('application.republish_all.get_title_detail')
+    def test_process_republish_all_titles_file(self, mock_db, mock_producer, mock_queue, mock_connection, mock_exchange):
 
+        def fake_sor_data(self, *args):
+            return {"sig": "some_signed_data", "data": {"title_number": "DN1", "application_reference": 23}}
+
+        mock_db.side_effect = fake_sor_data
+        try:
+            self.write_file()
+            process_republish_all_titles_file(app, db)
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("myFunc() raised ExceptionType unexpectedly!")
+
+    @mock.patch('application.models.SignedTitles')
+    @mock.patch('application.db.session.query')
+    def test_get_title_detail(self, mock_query, mock_model):
+        try:
+            get_title_detail(db, 1)
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("myFunc() raised ExceptionType unexpectedly!")
+
+    @mock.patch('kombu.message.Message')
+    @mock.patch('application.server.republish_by_title_and_application_reference')
+    @mock.patch('application.app.logger.audit')
+    def test_process_message(self, mock_audit, mock_republish, mock_msg):
+        mock_msg.ack.side_effect = self.do_nothing
+        try:
+            test_dict = {"title_number": "all done", "application_reference": "noon"}
+            process_message(test_dict, mock_msg)
+            mock_audit.assert_called_once_with('Republish everything: job completed at noon')
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("myFunc() raised ExceptionType unexpectedly!")
+
+        try:
+            test_dict = {"title_number": "DN1", "application_reference": "ABR1"}
+            process_message(test_dict, mock_msg)
+            mock_republish.assert_called_once_with(test_dict, False)
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("myFunc() raised ExceptionType unexpectedly!")
+
+    @mock.patch('kombu.Exchange')
+    @mock.patch('kombu.Connection')
+    @mock.patch('kombu.Queue')
+    @mock.patch('kombu.Consumer')
+    @mock.patch('kombu.Connection.channel')
+    @mock.patch('application.republish_all.running_as_service')
+    def test_check_republish_everything_queue(self, mock_loop_bool, mock_channel, mock_consumer, mock_queue,
+                                              mock_connection, mock_exchange):
+        # Everything is mocked in this test.   But its a large function - so coverage needs to be considered.
+        def make_false():
+            return False
+        mock_loop_bool.side_effect = make_false
+        try:
+            check_republish_everything_queue(app)
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("myFunc() raised ExceptionType unexpectedly!")
 
     def do_nothing(*args):
-        pass
+                pass
 
     def create_exception(self, *args):
         raise TestException('bang!')
@@ -74,5 +134,7 @@ class TestSequenceFunctions(unittest.TestCase):
         new_job_data = {"current_id": 0, "last_id": 1, "count": 0}
         with open(PATH, 'w') as f:
             json.dump(new_job_data, f, ensure_ascii=False)
+
+
 
 
