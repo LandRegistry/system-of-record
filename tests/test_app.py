@@ -18,8 +18,6 @@ class TestException(Exception):
 
 class TestSequenceFunctions(unittest.TestCase):
 
-    PATH = './republish_progress.json'
-
     def setUp(self):
         app.config.from_object(os.environ.get('SETTINGS'))
         self.app = server.app.test_client()
