@@ -4,7 +4,7 @@ import mock
 from application import app, db
 from application.republish_all import *
 import json
-
+from testfixtures import LogCapture
 
 class TestException(Exception):
     pass
@@ -45,10 +45,18 @@ class TestSequenceFunctions(unittest.TestCase):
     @mock.patch('time.sleep')
     def test_check_for_republish_all_titles_file(self, mock_sleep, mock_repub):
         # Write a file.  Mock Process it. Mock sleep to raise an exception to exit the recursive loop.
-        self.write_file()
-        mock_sleep.side_effect = self.create_exception
-        mock_repub.side_effect = self.do_nothing
-        self.assertRaises(TestException, check_for_republish_all_titles_file, app, db)
+        with LogCapture() as l:
+            self.write_file()
+            mock_sleep.side_effect = self.create_exception
+            mock_repub.side_effect = self.do_nothing
+            self.assertRaises(TestException, check_for_republish_all_titles_file, app, db)
+        l.check(
+            ('application', 'AUDIT', 'Republish everything: processing a request to republish all titles. '),
+            ('application', 'AUDIT', 'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
+        )
+
+
+#'Republish everything: Row IDs up to %s checked. %s titles sent for republishing.'
 
     @mock.patch('application.app.logger.audit')
     def test_remove_republish_all_titles_file(self, mock_audit):
