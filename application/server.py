@@ -2,11 +2,14 @@ from application.models import SignedTitles
 from application import app
 from application import db
 from flask import request
-from kombu import Connection, Producer, Exchange, Queue
+# from kombu import Connection, Producer, Exchange, Queue
 import traceback
 from sqlalchemy.exc import IntegrityError
 from python_logging.logging_utils import linux_user, client_ip, log_dir
 import re
+import os
+import os.path
+import json
 
 
 
@@ -61,7 +64,7 @@ def insert():
 
 def publish_json_to_queue(request_json, title_number):
     # Next write to queue for consumption by register publisher
-    from application import producer, exchange, queue, connection
+    from application import producer, exchange, system_of_record_queue, connection
 
     def errback(exc, interval):
         app.logger.error('Error publishing to queue: %r', exc, exc_info=1)
@@ -69,7 +72,7 @@ def publish_json_to_queue(request_json, title_number):
 
     # connection.ensure will re-establish the connection and retry, if the connection is lost.
     publish_to_sor = connection.ensure(producer, producer.publish, errback=errback, max_retries=10)
-    publish_to_sor(request_json, exchange=exchange, routing_key=queue.routing_key, serializer='json',
+    publish_to_sor(request_json, exchange=exchange, routing_key=system_of_record_queue.routing_key, serializer='json',
                      headers={'title_number': title_number})
 
 
@@ -124,7 +127,7 @@ def republish():
         # get the register by title_number and application_reference
         elif 'application_reference' in a_title:
             try:
-                republish_by_title_and_application_reference(a_title)
+                republish_by_title_and_application_reference(a_title, True)
             except:
                 error_count += 1
 
@@ -172,7 +175,7 @@ def republish_latest_version(republish_json):
         raise # re-raise error for counting errors.
 
 
-def republish_by_title_and_application_reference(republish_json):
+def republish_by_title_and_application_reference(republish_json, perform_audit):
     try:
         row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
 
@@ -188,11 +191,12 @@ def republish_by_title_and_application_reference(republish_json):
             raise NoRowFoundException('application %s for title number %s not found in database. ' % (
                 republish_json['application_reference'], republish_json['title_number']))
 
-        app.logger.audit(
-            make_log_msg(
-                'Republishing application %s to  %s queue at %s. ' % (
-                    republish_json['application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
-                request, 'debug', republish_json['title_number']))
+        if perform_audit: # No audit is system performing a full republish.
+            app.logger.audit(
+                make_log_msg(
+                    'Republishing application %s to  %s queue at %s. ' % (
+                        republish_json['application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
+                    request, 'debug', republish_json['title_number']))
 
         return 'republish_by_title_and_application_reference successful'  # for testing
 
@@ -234,8 +238,33 @@ def republish_all_versions_of_title(republish_json):
             raise  # re-raise error for counting errors.
 
 
+@app.route("/republisheverything")
+def republish_everything():
+    # check that a republish job is not already underway.
+    PATH='./republish_progress.json'
+    if os.path.isfile(PATH):
+        audit_message = 'New republish job attempted.  However, one already in progress. '
+        app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
+        return "Republish job already in progress", 200
+    else:
+        last_id = get_last_system_of_record_id()
+        # Create a new job file
+        new_job_data = {"current_id": 0, "last_id": last_id, "count": 0}
+        with open(PATH, 'w') as f:
+            json.dump(new_job_data, f, ensure_ascii=False)
+        audit_message = 'New republish everything job submitted. '
+        app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
+        return "New republish job submitted", 200
+
+
+def get_last_system_of_record_id():
+    signed_titles_instance = db.session.query(SignedTitles).order_by(SignedTitles.id.desc()).first()
+    return signed_titles_instance.id
+
+
 def execute_query(sql):
     return db.engine.execute(sql)
+
 
 class NoRowFoundException(Exception):
     pass

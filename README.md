@@ -93,6 +93,20 @@ curl -X POST -d '{"titles": [{"title_number":"DN1", "application_reference": "AB
 curl -X POST -d '{"titles": [{"title_number":"DN1", "all_versions":true}]}' -H "Content-Type: application/json" http://127.0.0.1:5001/republish
 ```
 
+###Republish everything:
+```
+curl http://127.0.0.1:5001/republisheverything
+```
+
+The republisheverything endpoint creates a 'republish_progress.json' file.  This file is populated with a count value
+and the last id on the target database.  After the file is created, a thread will use the count value to check the system of
+ record database for a corresponding row id.  If it finds one it will send json containing the title number and abr
+ to the 'republish_everything' queue. When the 'count' value equals the 'last_id' value, the file will be deleted.  
+Meanwhile a separate thread is running to consume messages from the 'republish_everything' queue.  Once it finds a 
+message it calls the service's existing function to republish a title by title number and application reference.
+
+The threads are spawned in republish_all.py, which is called in the init of the flask app. 
+
 
 ##How to check that the service is running:
 

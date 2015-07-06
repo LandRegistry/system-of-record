@@ -8,6 +8,7 @@ import mock
 from sqlalchemy.exc import IntegrityError
 import time
 from python_logging.logging_utils import log_dir
+import json
 
 CORRECT_TEST_TITLE = '{"sig":"some_signed_data","data":{"title_number": "DN1"}}'
 INCORRECT_TEST_TITLE = '{"missing closing speech marks :"some_signed_data","data":{"title_number": "DN1"}}'
@@ -225,7 +226,7 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_publish.side_effect = self.do_nothing
         mock_execute_query.side_effect = self.one_row_response
         self.assertEquals('republish_by_title_and_application_reference successful',
-                          republish_by_title_and_application_reference({'title_number': 'DN1', 'application_reference': 'ABR456'}))
+                          republish_by_title_and_application_reference({'title_number': 'DN1', 'application_reference': 'ABR456'}, True))
 
 
     @mock.patch('application.server.publish_json_to_queue')
@@ -250,7 +251,7 @@ class TestSequenceFunctions(unittest.TestCase):
     def test_republish_by_title_and_application_reference_error(self, mock_execute_query, mock_publish):
         mock_publish.side_effect = self.create_exception
         mock_execute_query.side_effect = self.one_row_response
-        self.assertRaises(TestException, republish_by_title_and_application_reference, {'title_number': 'DN1', 'application_reference': 'ABR456'} )
+        self.assertRaises(TestException, republish_by_title_and_application_reference, {'title_number': 'DN1', 'application_reference': 'ABR456'}, True)
 
 
     @mock.patch('application.server.publish_json_to_queue')
@@ -267,3 +268,18 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_publish.side_effect = self.do_nothing
         mock_execute_query.side_effect = self.zero_row_response
         self.assertRaises(NoRowFoundException, republish_all_versions_of_title, {'title_number': 'DN1'})
+
+    @mock.patch('application.server.get_last_system_of_record_id')
+    def test_republish_route(self, mock_id):
+        def fake_id():
+            return 1
+        mock_id.side_effect = fake_id
+        # start new job
+        response = self.app.get('/republisheverything')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
+
+        # check I can't start another
+        response = self.app.get('/republisheverything')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("Republish job already in progress", response.data.decode("utf-8"))

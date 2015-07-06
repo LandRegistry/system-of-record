@@ -20,12 +20,12 @@ puppet module install puppetlabs-apt --version "<2.0.0"
 
 puppet module install puppetlabs-postgresql
 
-puppet apply /vagrant/code/system-of-record/manifests/postgres.pp
+puppet apply /home/vagrant/srv/system-of-record/manifests/postgres.pp
 
 puppet module install garethr-erlang
 
-puppet apply /vagrant/code/system-of-record/manifests/erlang.pp
+puppet apply /home/vagrant/srv/system-of-record/manifests/erlang.pp
 
 puppet module install puppetlabs-rabbitmq
 
-puppet apply /vagrant/code/system-of-record/manifests/rabbit.pp
+puppet apply /home/vagrant/srv/system-of-record/manifests/rabbit.pp
