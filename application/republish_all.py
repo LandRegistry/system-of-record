@@ -15,12 +15,12 @@ JOB_COMPLETE_FLAG = 'all done'
 
 def republish_all_titles(app, db):
     # Thread to check the file for job progress and act accordingly.
-    process_thread = threading.Thread(target=check_for_republish_all_titles_file, args=(app, db, ))
+    process_thread = threading.Thread(name='monitor-republish_file', target=check_for_republish_all_titles_file, args=(app, db, ))
     process_thread.setDaemon(True)
     process_thread.start()
 
     # Thread to query the REPUBLISH_EVERYTHING_QUEUE and process any jobs found.
-    process_thread = threading.Thread(target=check_republish_everything_queue, args=(app, ))
+    process_thread = threading.Thread(name='monitor-republish_queue', target=check_republish_everything_queue, args=(app, ))
     process_thread.setDaemon(True)
     process_thread.start()
 
@@ -95,15 +95,19 @@ def process_republish_all_titles_file(app, db):
         write_progress_file.close()
 
         # Upon success, rename to proper filename.  Rename is an atomic action.
-        max_tries = 100
+        max_tries = 10
         for i in range(max_tries):
             try:
                 os.rename(TEMP_PATH, PATH)
                 break
-            except:
-                time.sleep(.1)
+            except Exception as err:
+                time.sleep(1)
+                log_republish_error(str(err), app)
         else:
-            log_republish_error('Can not rename temp file after processing id: %s' % current_id, app)
+            log_republish_error('Can not rename temp file after processing id: %s.  Aborting job.' % current_id, app)
+            #Abort this job by breaking out of the loop.  Otherwise it will continuously loop on the same id.
+            break
+
 
     last_job_notify_json = {"title_number": JOB_COMPLETE_FLAG, "application_reference": time.strftime("%b %d %Y %H:%M:%S") }
     publish_to_repubish_everything(last_job_notify_json, exchange=re_exchange,
@@ -121,7 +125,7 @@ def get_title_detail(db, the_id):
 
 
 def remove_republish_all_titles_file(app):
-    max_tries = 100
+    max_tries = 10
     for i in range(max_tries):
         try:
             with open(PATH, "r") as read_progress_file:
@@ -131,8 +135,9 @@ def remove_republish_all_titles_file(app):
                 progess_data['last_id'], progess_data['count']))
             os.remove(PATH)
             break
-        except:
-            time.sleep(.1)
+        except Exception as err:
+            time.sleep(1)
+            log_republish_error(str(err), app)
     else:
         log_republish_error('Can not remove job file after republishing', app)
 
