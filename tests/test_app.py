@@ -1,6 +1,6 @@
 import unittest
 from application import server
-from application.server import app, publish_json_to_queue, remove_username_password
+from application.server import app,db, publish_json_to_queue, remove_username_password
 from application.server import republish_latest_version, republish_by_title_and_application_reference
 from application.server import republish_all_versions_of_title, NoRowFoundException
 import os
@@ -9,6 +9,8 @@ from sqlalchemy.exc import IntegrityError
 import time
 from python_logging.logging_utils import log_dir
 import json
+from application.republish_all import remove_republish_all_titles_file, get_title_detail, check_for_republish_all_titles_file, republish_all_titles, log_republish_error
+from testfixtures import LogCapture
 
 CORRECT_TEST_TITLE = '{"sig":"some_signed_data","data":{"title_number": "DN1"}}'
 INCORRECT_TEST_TITLE = '{"missing closing speech marks :"some_signed_data","data":{"title_number": "DN1"}}'
@@ -17,6 +19,8 @@ class TestException(Exception):
     pass
 
 class TestSequenceFunctions(unittest.TestCase):
+
+    PATH = './republish_progress.json'
 
     def setUp(self):
         app.config.from_object(os.environ.get('SETTINGS'))
@@ -270,16 +274,109 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertRaises(NoRowFoundException, republish_all_versions_of_title, {'title_number': 'DN1'})
 
     @mock.patch('application.server.get_last_system_of_record_id')
-    def test_republish_route(self, mock_id):
+    @mock.patch('application.republish_all.republish_all_titles')
+    def test_republish_route(self, mock_republish, mock_id):
+        #erase a job file if it exists
+        remove_republish_all_titles_file(app)
+
         def fake_id():
             return 1
         mock_id.side_effect = fake_id
+        mock_republish.side_effect = self.do_nothing
         # start new job
-        response = self.app.get('/republisheverything')
+        response = self.app.get('/republish/everything')
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
 
         # check I can't start another
-        response = self.app.get('/republisheverything')
+        response = self.app.get('/republish/everything')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("Resumed republish job.", response.data.decode("utf-8"))
+
+        remove_republish_all_titles_file(app)
+
+    @mock.patch('application.server.get_last_system_of_record_id')
+    @mock.patch('application.server.check_job_running')
+    @mock.patch('application.republish_all.republish_all_titles')
+    @mock.patch('application.republish_all.remove_republish_all_titles_file')
+    def test_republish_route_with_running_job(self, mock_remove, mock_republish, mock_running, mock_id):
+
+        def fake_id():
+            return 1
+
+        def fake_running():
+            return 'running'
+        def clear_progress_file():
+            #erase a job file if it exists
+            try:
+                os.remove(self.PATH)
+            except:
+                pass
+
+        clear_progress_file()
+        mock_running.side_effect = fake_running
+        mock_id.side_effect = fake_id
+        mock_republish.side_effect = self.do_nothing
+        mock_remove.side_effect = clear_progress_file
+        # start new job
+        response = self.app.get('/republish/everything')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
+
+        # check I can't start another
+        response = self.app.get('/republish/everything')
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("Republish job already in progress", response.data.decode("utf-8"))
+
+    def test_log_republish_error(self):
+        self.assertTrue('test Signed in as:' in log_republish_error('test', app))
+
+    @mock.patch('application.republish_all.check_for_republish_all_titles_file')
+    def test_republish_all_titles(self, mock_file_func):
+        mock_file_func.side_effect = self.do_nothing
+        try:
+            republish_all_titles(app, db)
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("myFunc() raised ExceptionType unexpectedly!")
+
+    # # mantra: "Mock an item where it is used, not where it came from."
+    # @mock.patch('application.republish_all.process_republish_all_titles_file')
+    # @mock.patch('time.sleep')
+    # def test_check_for_republish_all_titles_file(self, mock_sleep, mock_repub):
+    #     # Write a file.  Mock Process it. Mock sleep to raise an exception to exit the recursive loop.
+    #     with LogCapture() as l:
+    #         self.write_file()
+    #         mock_sleep.side_effect = self.create_exception
+    #         mock_repub.side_effect = self.do_nothing
+    #     l.check(
+    #         ('application', 'AUDIT', 'Republish everything: processing a request to republish all titles. '),
+    #         ('application', 'AUDIT', 'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
+    #     )
+
+
+    #'Republish everything: Row IDs up to %s checked. %s titles sent for republishing.'
+
+    @mock.patch('application.app.logger.audit')
+    def test_remove_republish_all_titles_file(self, mock_audit):
+        self.write_file()  # creates the test file.
+        remove_republish_all_titles_file(app)
+        mock_audit.assert_called_once_with(
+            'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
+        self.assertFalse(os.path.isfile(self.PATH))
+
+    @mock.patch('application.models.SignedTitles')
+    @mock.patch('application.db.session.query')
+    def test_get_title_detail(self, mock_query, mock_model):
+        try:
+            get_title_detail(db, 1)
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("myFunc() raised ExceptionType unexpectedly!")
+
+    def write_file(self):
+        new_job_data = {"current_id": 0, "last_id": 1, "count": 0}
+        with open(self.PATH, 'w') as f:
+            json.dump(new_job_data, f, ensure_ascii=False)
+
+

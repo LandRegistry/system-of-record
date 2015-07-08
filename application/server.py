@@ -10,8 +10,10 @@ import re
 import os
 import os.path
 import json
+from  .republish_all import republish_all_titles
+import time
 
-
+PATH='./republish_progress.json'
 
 @app.route("/")
 def check_status():
@@ -238,14 +240,22 @@ def republish_all_versions_of_title(republish_json):
             raise  # re-raise error for counting errors.
 
 
-@app.route("/republisheverything")
+@app.route("/republish/everything")
 def republish_everything():
     # check that a republish job is not already underway.
-    PATH='./republish_progress.json'
     if os.path.isfile(PATH):
-        audit_message = 'New republish job attempted.  However, one already in progress. '
-        app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
-        return "Republish job already in progress", 200
+        if check_job_running() == 'running':
+            audit_message = 'New republish job attempted.  However, one already in progress. '
+            app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
+            return "Republish job already in progress", 200
+        elif check_job_running() == 'not running':
+            audit_message = 'New republish everything job resumed. '
+            app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
+            # resume republishing events.
+            republish_all_titles(app, db)
+            return "Resumed republish job.", 200
+        else:
+            return "Unknown job status.", 200
     else:
         last_id = get_last_system_of_record_id()
         # Create a new job file
@@ -254,7 +264,33 @@ def republish_everything():
             json.dump(new_job_data, f, ensure_ascii=False)
         audit_message = 'New republish everything job submitted. '
         app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
+        # Check for and process republishing events.
+        republish_all_titles(app, db)
         return "New republish job submitted", 200
+
+
+@app.route("/republish/everything/status")
+def check_job_running():
+    result = 'not running'
+    if os.path.isfile(PATH):
+        with open(PATH, "r") as read_progress_file:
+            progress_data = json.load(read_progress_file)
+            read_progress_file.close()
+        first_id = progress_data['current_id']
+        #Now wait a bit, then check again to see if the id has advanced.
+        max_checks = 25
+        for i in range(max_checks):
+            with open(PATH, "r") as read_progress_file:
+                latest_progess_data = json.load(read_progress_file)
+                read_progress_file.close()
+            latest_id = latest_progess_data['current_id']
+
+            if latest_id > first_id:
+                result = 'running'
+                break
+            time.sleep(0.1)
+
+    return result
 
 
 def get_last_system_of_record_id():

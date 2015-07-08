@@ -23,6 +23,3 @@ if os.environ.get('SETTINGS') != "config.UnitTestConfig":
     system_of_record_queue.declare()
     channel = connection.channel()
     producer = Producer(connection)
-
-    # Check for and process republishing events.
-    republish_all_titles(app, db)
