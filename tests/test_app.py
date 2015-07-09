@@ -9,7 +9,8 @@ from sqlalchemy.exc import IntegrityError
 import time
 from python_logging.logging_utils import log_dir
 import json
-from application.republish_all import remove_republish_all_titles_file, get_title_detail, check_for_republish_all_titles_file, republish_all_titles, log_republish_error
+from application.republish_all import remove_republish_all_titles_file, get_title_detail, \
+    check_for_republish_all_titles_file, republish_all_titles, log_republish_error, process_republish_all_titles_file
 from testfixtures import LogCapture
 
 CORRECT_TEST_TITLE = '{"sig":"some_signed_data","data":{"title_number": "DN1"}}'
@@ -25,6 +26,9 @@ class TestSequenceFunctions(unittest.TestCase):
     def setUp(self):
         app.config.from_object(os.environ.get('SETTINGS'))
         self.app = server.app.test_client()
+
+    def tearDown(self):
+        remove_republish_all_titles_file(app)
 
     def add_mocks(function):
         @mock.patch('application.server.db.session.add')
@@ -274,8 +278,8 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertRaises(NoRowFoundException, republish_all_versions_of_title, {'title_number': 'DN1'})
 
     @mock.patch('application.server.get_last_system_of_record_id')
-    @mock.patch('application.republish_all.republish_all_titles')
-    def test_republish_route(self, mock_republish, mock_id):
+    @mock.patch('application.server.republish_all_titles')
+    def test_republish_everything_route(self, mock_republish, mock_id):
         #erase a job file if it exists
         remove_republish_all_titles_file(app)
 
@@ -297,9 +301,8 @@ class TestSequenceFunctions(unittest.TestCase):
 
     @mock.patch('application.server.get_last_system_of_record_id')
     @mock.patch('application.server.check_job_running')
-    @mock.patch('application.republish_all.republish_all_titles')
-    @mock.patch('application.republish_all.remove_republish_all_titles_file')
-    def test_republish_route_with_running_job(self, mock_remove, mock_republish, mock_running, mock_id):
+    @mock.patch('application.server.republish_all_titles')
+    def test_republish_route_with_running_job(self, mock_republish, mock_running, mock_id):
 
         def fake_id():
             return 1
@@ -317,7 +320,6 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_running.side_effect = fake_running
         mock_id.side_effect = fake_id
         mock_republish.side_effect = self.do_nothing
-        mock_remove.side_effect = clear_progress_file
         # start new job
         response = self.app.get('/republish/everything')
         self.assertEqual(response.status, '200 OK')
@@ -340,22 +342,17 @@ class TestSequenceFunctions(unittest.TestCase):
             app.logger.error(str(err))
             self.fail("myFunc() raised ExceptionType unexpectedly!")
 
-    # # mantra: "Mock an item where it is used, not where it came from."
-    # @mock.patch('application.republish_all.process_republish_all_titles_file')
-    # @mock.patch('time.sleep')
-    # def test_check_for_republish_all_titles_file(self, mock_sleep, mock_repub):
-    #     # Write a file.  Mock Process it. Mock sleep to raise an exception to exit the recursive loop.
-    #     with LogCapture() as l:
-    #         self.write_file()
-    #         mock_sleep.side_effect = self.create_exception
-    #         mock_repub.side_effect = self.do_nothing
-    #     l.check(
-    #         ('application', 'AUDIT', 'Republish everything: processing a request to republish all titles. '),
-    #         ('application', 'AUDIT', 'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
-    #     )
-
-
-    #'Republish everything: Row IDs up to %s checked. %s titles sent for republishing.'
+    # mantra: "Mock an item where it is used, not where it came from."
+    @mock.patch('application.republish_all.process_republish_all_titles_file')
+    def test_check_for_republish_all_titles_file(self, mock_repub):
+        with LogCapture() as l:
+            self.write_file()
+            mock_repub.side_effect = self.do_nothing
+            check_for_republish_all_titles_file(app, db)
+        l.check(
+            ('application', 'AUDIT', 'Republish everything: processing a request to republish all titles. '),
+            ('application', 'AUDIT', 'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
+        )
 
     @mock.patch('application.app.logger.audit')
     def test_remove_republish_all_titles_file(self, mock_audit):
@@ -374,9 +371,28 @@ class TestSequenceFunctions(unittest.TestCase):
             app.logger.error(str(err))
             self.fail("myFunc() raised ExceptionType unexpectedly!")
 
+    @mock.patch('application.server.republish_by_title_and_application_reference')
+    @mock.patch('application.republish_all.get_title_detail')
+    def test_process_republish_all_titles_file(self, mock_get_detail, mock_republish):
+
+        def fake_sor_data(self, *args):
+            return {"sig": "some_signed_data", "data": {"title_number": "DN1", "application_reference": 23}}
+
+        mock_get_detail.side_effect = fake_sor_data
+        mock_republish.side_effect = self.do_nothing
+        try:
+            self.write_file()
+            process_republish_all_titles_file(app, db)
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("myFunc() raised ExceptionType unexpectedly!")
+
+
     def write_file(self):
         new_job_data = {"current_id": 0, "last_id": 1, "count": 0}
         with open(self.PATH, 'w') as f:
             json.dump(new_job_data, f, ensure_ascii=False)
+
+
 
 
