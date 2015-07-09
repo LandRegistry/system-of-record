@@ -96,21 +96,23 @@ def get_title_detail(db, the_id):
 
 
 def remove_republish_all_titles_file(app):
-    max_tries = 10
-    for i in range(max_tries):
-        try:
-            with open(PATH, "r") as read_progress_file:
-                progess_data = json.load(read_progress_file)
-                read_progress_file.close()
-            app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing.' % (
-                progess_data['last_id'], progess_data['count']))
-            os.remove(PATH)
-            break
-        except Exception as err:
-            time.sleep(1)
-            log_republish_error(str(err), app)
-    else:
-        log_republish_error('Can not remove job file after republishing', app)
+    republish_all_titles_file_exists = os.path.isfile(PATH)
+    if republish_all_titles_file_exists:
+        max_tries = 10
+        for i in range(max_tries):
+            try:
+                with open(PATH, "r") as read_progress_file:
+                    progess_data = json.load(read_progress_file)
+                    read_progress_file.close()
+                app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing.' % (
+                    progess_data['last_id'], progess_data['count']))
+                os.remove(PATH)
+                break
+            except Exception as err:
+                time.sleep(1)
+                log_republish_error(str(err), app)
+        else:
+            log_republish_error('Can not remove job file after republishing', app)
 
 
 def log_republish_error(message, app):

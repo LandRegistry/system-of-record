@@ -10,7 +10,7 @@ import re
 import os
 import os.path
 import json
-from  .republish_all import republish_all_titles
+from .republish_all import republish_all_titles
 import time
 
 PATH='./republish_progress.json'
