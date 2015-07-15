@@ -2,13 +2,18 @@ from application.models import SignedTitles
 from application import app
 from application import db
 from flask import request
-from kombu import Connection, Producer, Exchange, Queue
+# from kombu import Connection, Producer, Exchange, Queue
 import traceback
 from sqlalchemy.exc import IntegrityError
 from python_logging.logging_utils import linux_user, client_ip, log_dir
 import re
+import os
+import os.path
+import json
+from .republish_all import republish_all_titles
+import time
 
-
+PATH='./republish_progress.json'
 
 @app.route("/")
 def check_status():
@@ -59,25 +64,19 @@ def insert():
 
 
 
-def publish_json_to_queue(json_string, title_number):
+def publish_json_to_queue(request_json, title_number):
     # Next write to queue for consumption by register publisher
-    # By default messages sent to exchanges are persistent (delivery_mode=2),
-    # and queues and exchanges are durable.
-    # 'confirm_publish' means that the publish() call will wait for an acknowledgement.
-    exchange = Exchange()
-    connection = Connection(hostname=app.config['RABBIT_ENDPOINT'], transport_options={'confirm_publish': True})
+    from application import producer, exchange, system_of_record_queue, connection
 
-    # Create a queue bound to the connection.
-    # queue = Queue('system_of_record', exchange, routing_key='system_of_record')(connection)
-    queue = Queue(app.config['RABBIT_QUEUE'],
-                  exchange,
-                  routing_key=app.config['RABBIT_ROUTING_KEY'])(connection)
-    queue.declare()
+    def errback(exc, interval):
+        app.logger.error('Error publishing to queue: %r', exc, exc_info=1)
+        app.logger.info('Retry publishing in %s seconds.', interval)
 
-    # Producers are used to publish messages.
-    producer = Producer(connection)
-    producer.publish(json_string, exchange=exchange, routing_key=queue.routing_key, serializer='json',
+    # connection.ensure will re-establish the connection and retry, if the connection is lost.
+    publish_to_sor = connection.ensure(producer, producer.publish, errback=errback, max_retries=10)
+    publish_to_sor(request_json, exchange=exchange, routing_key=system_of_record_queue.routing_key, serializer='json',
                      headers={'title_number': title_number})
+
 
 
 def make_log_msg(message, request, log_level, title_number):
@@ -130,7 +129,7 @@ def republish():
         # get the register by title_number and application_reference
         elif 'application_reference' in a_title:
             try:
-                republish_by_title_and_application_reference(a_title)
+                republish_by_title_and_application_reference(a_title, True)
             except:
                 error_count += 1
 
@@ -178,7 +177,7 @@ def republish_latest_version(republish_json):
         raise # re-raise error for counting errors.
 
 
-def republish_by_title_and_application_reference(republish_json):
+def republish_by_title_and_application_reference(republish_json, perform_audit):
     try:
         row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
 
@@ -194,11 +193,12 @@ def republish_by_title_and_application_reference(republish_json):
             raise NoRowFoundException('application %s for title number %s not found in database. ' % (
                 republish_json['application_reference'], republish_json['title_number']))
 
-        app.logger.audit(
-            make_log_msg(
-                'Republishing application %s to  %s queue at %s. ' % (
-                    republish_json['application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
-                request, 'debug', republish_json['title_number']))
+        if perform_audit: # No audit is system performing a full republish.
+            app.logger.audit(
+                make_log_msg(
+                    'Republishing application %s to  %s queue at %s. ' % (
+                        republish_json['application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
+                    request, 'debug', republish_json['title_number']))
 
         return 'republish_by_title_and_application_reference successful'  # for testing
 
@@ -240,8 +240,67 @@ def republish_all_versions_of_title(republish_json):
             raise  # re-raise error for counting errors.
 
 
+@app.route("/republish/everything")
+def republish_everything():
+    # check that a republish job is not already underway.
+    if os.path.isfile(PATH):
+        if check_job_running() == 'running':
+            audit_message = 'New republish job attempted.  However, one already in progress. '
+            app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
+            return "Republish job already in progress", 200
+        elif check_job_running() == 'not running':
+            audit_message = 'New republish everything job resumed. '
+            app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
+            # resume republishing events.
+            republish_all_titles(app, db)
+            return "Resumed republish job.", 200
+        else:
+            return "Unknown job status.", 200
+    else:
+        last_id = get_last_system_of_record_id()
+        # Create a new job file
+        new_job_data = {"current_id": 0, "last_id": last_id, "count": 0}
+        with open(PATH, 'w') as f:
+            json.dump(new_job_data, f, ensure_ascii=False)
+        audit_message = 'New republish everything job submitted. '
+        app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
+        # Check for and process republishing events.
+        republish_all_titles(app, db)
+        return "New republish job submitted", 200
+
+
+@app.route("/republish/everything/status")
+def check_job_running():
+    result = 'not running'
+    if os.path.isfile(PATH):
+        with open(PATH, "r") as read_progress_file:
+            progress_data = json.load(read_progress_file)
+            read_progress_file.close()
+        first_id = progress_data['current_id']
+        #Now wait a bit, then check again to see if the id has advanced.
+        max_checks = 25
+        for i in range(max_checks):
+            with open(PATH, "r") as read_progress_file:
+                latest_progess_data = json.load(read_progress_file)
+                read_progress_file.close()
+            latest_id = latest_progess_data['current_id']
+
+            if latest_id > first_id:
+                result = 'running'
+                break
+            time.sleep(0.1)
+
+    return result
+
+
+def get_last_system_of_record_id():
+    signed_titles_instance = db.session.query(SignedTitles).order_by(SignedTitles.id.desc()).first()
+    return signed_titles_instance.id
+
+
 def execute_query(sql):
     return db.engine.execute(sql)
+
 
 class NoRowFoundException(Exception):
     pass
