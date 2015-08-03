@@ -95,7 +95,7 @@ curl -X POST -d '{"titles": [{"title_number":"DN1", "all_versions":true}]}' -H "
 
 ###Republish everything:
 ```
-curl http://127.0.0.1:5001/republisheverything
+curl http://127.0.0.1:5001/republish/everything
 ```
 
 The republisheverything endpoint creates a 'republish_progress.json' file.  This file is populated with a count value
