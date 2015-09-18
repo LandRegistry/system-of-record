@@ -22,6 +22,9 @@ case "$DEPLOY_ENVIRONMENT" in
   preproduction)
   SUPERVISOR_ENV="SETTINGS=\"config.PreproductionConfig\""
   ;;
+  oat)
+  SUPERVISOR_ENV="SETTINGS=\"config.OatConfig\""
+  ;;
   production)
   SUPERVISOR_ENV="SETTINGS=\"config.ProductionConfig\""
   ;;

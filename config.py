@@ -31,5 +31,8 @@ class ReleaseConfig(Config):
 class PreproductionConfig(Config):
     DEBUG = False
 
+class OatConfig(Config):
+    DEBUG = False
+
 class ProductionConfig(Config):
     DEBUG = False
