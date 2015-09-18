@@ -29,6 +29,8 @@ source ~/venvs/system-of-record/bin/activate
 ./run.sh -d
 ```
 
+Note:  Occasionally there is an issue starting Rabbitmq if you are already running a Register Publisher VM.
+
 ##how to run tests
 In virtual machine
 
@@ -152,6 +154,10 @@ rabbitmqadmin publish exchange=amq.default routing_key=system_of_record payload=
 ```
 
 ##How to update the database, if necessary
+
+```
+source ./environment.sh
+```
 
 ```
 python3 manage.py db upgrade
