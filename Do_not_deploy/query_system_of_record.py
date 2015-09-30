@@ -42,6 +42,7 @@ def delete_all_records():
     while True:
         if delete_last_record() != 'deleted':
             break
+    db.engine.execute("ALTER SEQUENCE sor_id_seq RESTART WITH 1;")
     return 'deleted', 202
 
 

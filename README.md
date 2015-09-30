@@ -29,6 +29,8 @@ source ~/venvs/system-of-record/bin/activate
 ./run.sh -d
 ```
 
+Note:  Occasionally there is an issue starting Rabbitmq if you are already running a Register Publisher VM.
+
 ##how to run tests
 In virtual machine
 
@@ -101,9 +103,9 @@ curl http://127.0.0.1:5001/republish/everything
 The republisheverything endpoint creates a 'republish_progress.json' file.  This file is populated with a count value
 and the last id on the target database.  After the file is created, a thread will use the count value to check the system of
  record database for a corresponding row id.  If it finds one it will send json containing the title number and abr
- to the 'republish_everything' queue. When the 'count' value equals the 'last_id' value, the file will be deleted.  
-Meanwhile a separate thread is running to consume messages from the 'republish_everything' queue.  Once it finds a 
-message it calls the service's existing function to republish a title by title number and application reference.
+ to the 'register_publisher' queue. When the 'count' value equals the 'last_id' value, the file will be deleted.
+ The service's function to republish a title by title number and application reference is used for each row found.
+ 
 
 The threads are spawned in republish_all.py, which is called in the init of the flask app. 
 
@@ -152,6 +154,10 @@ rabbitmqadmin publish exchange=amq.default routing_key=system_of_record payload=
 ```
 
 ##How to update the database, if necessary
+
+```
+source ./environment.sh
+```
 
 ```
 python3 manage.py db upgrade
