@@ -66,17 +66,17 @@ class RepublishTitles:
                         'Could not republish for row id %s owing to following error %s. ' % (
                         current_id, str(err)), app)
                     # Update the progress file upon error
-                    self.republish_all_progress(progress_data)
+                    self.update_progress(progress_data)
 
             # Update progress in the file for every 10000 processed rows
             if progress_count % 10000 == 0:
-                self.republish_all_progress(progress_data)
+                self.update_progress(progress_data)
 
         # Update the progress file upon completion
-        self.republish_all_progress(progress_data)
+        self.update_progress(progress_data)
 
 
-    def republish_all_progress(self, progress_data):
+    def update_progress(self, progress_data):
         write_progress_file = open(TEMP_PATH, "w")
         json.dump(progress_data, write_progress_file, ensure_ascii=False)
         write_progress_file.flush()  # Flush Python buffers

@@ -363,7 +363,7 @@ class TestSequenceFunctions(unittest.TestCase):
 
 
     @mock.patch('application.server.publish_json_to_queue')
-    @mock.patch('application.server.republish_title_instance.republish_all_progress')
+    @mock.patch('application.server.republish_title_instance.update_progress')
     @mock.patch('application.models.SignedTitles')
     @mock.patch('application.db.session.query')
     def test_process_republish_all_titles_file(self, mock_query, mock_model, mock_log_progress, mock_republish):
@@ -377,7 +377,24 @@ class TestSequenceFunctions(unittest.TestCase):
             self.fail("Test raised ExceptionType unexpectedly!")
 
     def test_republish_all_progress(self):
-        self.assertTrue(True=True)
+        try:
+            # Write test file
+            self.write_file()
+
+            # Test the function that updates the file
+            republish_title_instance.update_progress({"current_id": 123, "last_id": 999, "count": 56})
+
+            with open(self.PATH, "r") as read_progress_file:
+                progress_data = json.load(read_progress_file)
+            read_progress_file.close()
+
+            self.assertEqual(progress_data['current_id'], 123)
+            self.assertEqual(progress_data['last_id'], 999)
+            self.assertEqual(progress_data['count'], 56)
+
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("Test raised ExceptionType unexpectedly!")
 
 
     def write_file(self):
