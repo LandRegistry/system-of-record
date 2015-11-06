@@ -361,30 +361,23 @@ class TestSequenceFunctions(unittest.TestCase):
             'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
         self.assertFalse(os.path.isfile(self.PATH))
 
+
+    @mock.patch('application.server.publish_json_to_queue')
+    @mock.patch('application.server.republish_title_instance.republish_all_progress')
     @mock.patch('application.models.SignedTitles')
     @mock.patch('application.db.session.query')
-    def test_get_title_detail(self, mock_query, mock_model):
-        try:
-            republish_title_instance.get_title_detail(db, 1)
-        except Exception as err:
-            app.logger.error(str(err))
-            self.fail("myFunc() raised ExceptionType unexpectedly!")
-
-    @mock.patch('application.server.republish_by_title_and_application_reference')
-    @mock.patch('application.server.republish_title_instance.get_title_detail')
-    def test_process_republish_all_titles_file(self, mock_get_detail, mock_republish):
-
-        def fake_sor_data(self, *args):
-            return {"sig": "some_signed_data", "data": {"title_number": "DN1", "application_reference": 23}}
-
-        mock_get_detail.side_effect = fake_sor_data
+    def test_process_republish_all_titles_file(self, mock_query, mock_model, mock_log_progress, mock_republish):
+        #Tests the file and data handling.  SQLAlchemy and publishing mocked.
         mock_republish.side_effect = self.do_nothing
         try:
             self.write_file()
             republish_title_instance.process_republish_all_titles_file(app, db)
         except Exception as err:
             app.logger.error(str(err))
-            self.fail("myFunc() raised ExceptionType unexpectedly!")
+            self.fail("Test raised ExceptionType unexpectedly!")
+
+    def test_republish_all_progress(self):
+        self.assertTrue(True=True)
 
 
     def write_file(self):
