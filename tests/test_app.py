@@ -9,8 +9,7 @@ from sqlalchemy.exc import IntegrityError
 import time
 from python_logging.logging_utils import log_dir
 import json
-from application.republish_all import remove_republish_all_titles_file, get_title_detail, \
-    check_for_republish_all_titles_file, republish_all_titles, log_republish_error, process_republish_all_titles_file
+from application import republish_title_instance
 from testfixtures import LogCapture
 
 CORRECT_TEST_TITLE = '{"sig":"some_signed_data","data":{"title_number": "DN1"}}'
@@ -22,13 +21,14 @@ class TestException(Exception):
 class TestSequenceFunctions(unittest.TestCase):
 
     PATH = './republish_progress.json'
+    TEMP_PATH = './republish_progress_tmp.json'
 
     def setUp(self):
         app.config.from_object(os.environ.get('SETTINGS'))
         self.app = server.app.test_client()
 
     def tearDown(self):
-        remove_republish_all_titles_file(app)
+        republish_title_instance.remove_republish_all_titles_file(app)
 
     def add_mocks(function):
         @mock.patch('application.server.db.session.add')
@@ -277,11 +277,12 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_execute_query.side_effect = self.zero_row_response
         self.assertRaises(NoRowFoundException, republish_all_versions_of_title, {'title_number': 'DN1'})
 
+
     @mock.patch('application.server.get_last_system_of_record_id')
-    @mock.patch('application.server.republish_all_titles')
+    @mock.patch('application.server.republish_title_instance.republish_all_titles')
     def test_republish_everything_route(self, mock_republish, mock_id):
         #erase a job file if it exists
-        remove_republish_all_titles_file(app)
+        republish_title_instance.remove_republish_all_titles_file(app)
 
         def fake_id():
             return 1
@@ -297,16 +298,16 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("Resumed republish job.", response.data.decode("utf-8"))
 
-        remove_republish_all_titles_file(app)
+        republish_title_instance.remove_republish_all_titles_file(app)
+
 
     @mock.patch('application.server.get_last_system_of_record_id')
     @mock.patch('application.server.check_job_running')
-    @mock.patch('application.server.republish_all_titles')
+    @mock.patch('application.server.republish_title_instance.republish_all_titles')
     def test_republish_route_with_running_job(self, mock_republish, mock_running, mock_id):
 
         def fake_id():
             return 1
-
         def fake_running():
             return 'running'
         def clear_progress_file():
@@ -330,62 +331,102 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("Republish job already in progress", response.data.decode("utf-8"))
 
-    def test_log_republish_error(self):
-        self.assertTrue('test Signed in as:' in log_republish_error('test', app))
 
-    @mock.patch('application.republish_all.check_for_republish_all_titles_file')
+    def test_log_republish_error(self):
+        self.assertTrue('test Signed in as:' in republish_title_instance.log_republish_error('test', app))
+
+
+    @mock.patch('application.server.republish_title_instance.check_for_republish_all_titles_file')
     def test_republish_all_titles(self, mock_file_func):
         mock_file_func.side_effect = self.do_nothing
         try:
-            republish_all_titles(app, db)
+            republish_title_instance.republish_all_titles(app, db)
         except Exception as err:
             app.logger.error(str(err))
             self.fail("myFunc() raised ExceptionType unexpectedly!")
 
+
     # mantra: "Mock an item where it is used, not where it came from."
-    @mock.patch('application.republish_all.process_republish_all_titles_file')
+    @mock.patch('application.server.republish_title_instance.process_republish_all_titles_file')
     def test_check_for_republish_all_titles_file(self, mock_repub):
         with LogCapture() as l:
             self.write_file()
             mock_repub.side_effect = self.do_nothing
-            check_for_republish_all_titles_file(app, db)
+            republish_title_instance.check_for_republish_all_titles_file(app, db)
         l.check(
             ('application', 'AUDIT', 'Republish everything: processing a request to republish all titles. '),
             ('application', 'AUDIT', 'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
         )
 
+
     @mock.patch('application.app.logger.audit')
     def test_remove_republish_all_titles_file(self, mock_audit):
         self.write_file()  # creates the test file.
-        remove_republish_all_titles_file(app)
+        republish_title_instance.remove_republish_all_titles_file(app)
         mock_audit.assert_called_once_with(
             'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
         self.assertFalse(os.path.isfile(self.PATH))
 
+
+    @mock.patch('application.server.publish_json_to_queue')
+    @mock.patch('application.server.republish_title_instance.update_progress')
     @mock.patch('application.models.SignedTitles')
     @mock.patch('application.db.session.query')
-    def test_get_title_detail(self, mock_query, mock_model):
-        try:
-            get_title_detail(db, 1)
-        except Exception as err:
-            app.logger.error(str(err))
-            self.fail("myFunc() raised ExceptionType unexpectedly!")
 
-    @mock.patch('application.server.republish_by_title_and_application_reference')
-    @mock.patch('application.republish_all.get_title_detail')
-    def test_process_republish_all_titles_file(self, mock_get_detail, mock_republish):
-
-        def fake_sor_data(self, *args):
-            return {"sig": "some_signed_data", "data": {"title_number": "DN1", "application_reference": 23}}
-
-        mock_get_detail.side_effect = fake_sor_data
-        mock_republish.side_effect = self.do_nothing
+    def test_process_republish_all_titles_file(self, mock_query, mock_model, mock_log_progress, mock_republish):
+        #Tests the file and data handling.  SQLAlchemy and publishing mocked.
         try:
             self.write_file()
-            process_republish_all_titles_file(app, db)
+            republish_title_instance.process_republish_all_titles_file(app, db)
         except Exception as err:
             app.logger.error(str(err))
-            self.fail("myFunc() raised ExceptionType unexpectedly!")
+            self.fail("Test raised ExceptionType unexpectedly!")
+
+
+    def test_update_progress(self):
+        try:
+            # Write test file
+            self.write_file()
+
+            # Test the function that updates the file
+            republish_title_instance.update_progress(app,{"current_id": 123, "last_id": 999, "count": 56})
+
+            with open(self.PATH, "r") as read_progress_file:
+                progress_data = json.load(read_progress_file)
+            read_progress_file.close()
+
+            republish_title_instance.remove_republish_all_titles_file(app)
+
+            self.assertEqual(progress_data['current_id'], 123)
+            self.assertEqual(progress_data['last_id'], 999)
+            self.assertEqual(progress_data['count'], 56)
+
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("Test raised ExceptionType unexpectedly!")
+
+
+    @mock.patch('application.server.os.rename')
+    @mock.patch('application.server.app.logger.info')
+    @mock.patch('application.server.republish_title_instance.log_republish_error')
+    def test_update_progress_fail(self, mock_log_error, mock_log_info,mock_rename):
+        try:
+            try:
+                # mock an error when renaming.
+                mock_rename.side_effect = self.create_exception
+                # raise an error, rather than log an exception so we can test for it.
+                mock_log_error.side_effect = self.create_exception
+                # Write test file
+                self.write_file()
+
+                # Test that the mocked exception is raised.
+                self.assertRaises(TestException, republish_title_instance.update_progress, app,{"current_id": 456})
+            except Exception as err:
+                app.logger.error(str(err))
+                self.fail("Test raised ExceptionType unexpectedly!")
+        finally:
+            os.remove(self.TEMP_PATH)
+
 
 
     def write_file(self):

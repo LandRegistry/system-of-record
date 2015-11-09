@@ -1,7 +1,8 @@
 from application.models import SignedTitles
 from application import app
 from application import db
-from flask import request
+from application import republish_title_instance
+from flask import request, g
 # from kombu import Connection, Producer, Exchange, Queue
 import traceback
 from sqlalchemy.exc import IntegrityError
@@ -10,7 +11,6 @@ import re
 import os
 import os.path
 import json
-from .republish_all import republish_all_titles
 import time
 
 PATH='./republish_progress.json'
@@ -252,7 +252,7 @@ def republish_everything():
             audit_message = 'New republish everything job resumed. '
             app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
             # resume republishing events.
-            republish_all_titles(app, db)
+            republish_title_instance.republish_all_titles(app, db)
             return "Resumed republish job.", 200
         else:
             return "Unknown job status.", 200
@@ -265,33 +265,16 @@ def republish_everything():
         audit_message = 'New republish everything job submitted. '
         app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
         # Check for and process republishing events.
-        republish_all_titles(app, db)
+        republish_title_instance.republish_all_titles(app, db)
         return "New republish job submitted", 200
 
 
 @app.route("/republish/everything/status")
 def check_job_running():
-    result = 'not running'
-    if os.path.isfile(PATH):
-        with open(PATH, "r") as read_progress_file:
-            progress_data = json.load(read_progress_file)
-            read_progress_file.close()
-        first_id = progress_data['current_id']
-        #Now wait a bit, then check again to see if the id has advanced.
-        max_checks = 25
-        for i in range(max_checks):
-            with open(PATH, "r") as read_progress_file:
-                latest_progess_data = json.load(read_progress_file)
-                read_progress_file.close()
-            latest_id = latest_progess_data['current_id']
-
-            if latest_id > first_id:
-                result = 'running'
-                break
-            time.sleep(0.1)
-
-    return result
-
+    if republish_title_instance.republish_all_in_progress():
+        return 'running'
+    else:
+        return 'not running'
 
 def get_last_system_of_record_id():
     signed_titles_instance = db.session.query(SignedTitles).order_by(SignedTitles.id.desc()).first()
