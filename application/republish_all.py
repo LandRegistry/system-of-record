@@ -44,18 +44,21 @@ class RepublishTitles:
     def process_republish_all_titles_file(self, app, db):
         from .server import publish_json_to_queue
         from application.models import SignedTitles
-
         with open(PATH, "r") as read_progress_file:
             progress_data = json.load(read_progress_file)
             read_progress_file.close()
 
         current_id = progress_data['current_id']
         progress_count = progress_data['count']
+        last_id = progress_data['last_id']
 
         # 100 rows returned at a time. Start querying from offset value.
-        for row in db.session.query(SignedTitles).offset(current_id).yield_per(100):
+        for row in db.session.query(SignedTitles).filter(SignedTitles.id >= current_id).yield_per(100):
             if row:
                 try:
+                    if current_id > last_id:
+                        break
+
                     publish_json_to_queue(row.record, row.record['data']['title_number'])
                     progress_count += 1
                     progress_data['count'] = progress_count

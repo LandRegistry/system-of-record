@@ -249,7 +249,7 @@ def republish_everything():
             app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
             return "Republish job already in progress", 200
         elif check_job_running() == 'not running':
-            audit_message = 'New republish everything job resumed. '
+            audit_message = 'Existing republish everything job resumed. '
             app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
             # resume republishing events.
             republish_title_instance.republish_all_titles(app, db)
@@ -257,8 +257,8 @@ def republish_everything():
         else:
             return "Unknown job status.", 200
     else:
-        last_id = get_last_system_of_record_id()
         # Create a new job file
+        last_id = get_last_system_of_record_id()
         new_job_data = {"current_id": 0, "last_id": last_id, "count": 0}
         with open(PATH, 'w') as f:
             json.dump(new_job_data, f, ensure_ascii=False)
@@ -267,6 +267,30 @@ def republish_everything():
         # Check for and process republishing events.
         republish_title_instance.republish_all_titles(app, db)
         return "New republish job submitted", 200
+
+
+# @app.route("/republish/everything/<date_time_from>/<date_time_to>")
+# def republish_everything(date_time_from, date_time_to):
+        # Get the corresponding row id for the date supplied.
+        # if date_time_to is None:
+        #     last_id = get_last_system_of_record_id()
+        # else:
+        #     last_id = get_last_id_for_date_time(date_time_to)
+        #     app.logger.info('republishing everything up to %s' % date_time_to)
+        #
+        # if date_time_from is None:
+        #     first_id = 0
+        # else:
+        #     first_id = get_first_id_for_date_time(date_time_to)
+        #     app.logger.info('republishing everything from %s' % date_time_to)
+
+def get_first_id_for_date_time(date_time_from):
+    return 99981
+
+
+def get_last_id_for_date_time(date_time_to):
+    return 100002
+
 
 
 @app.route("/republish/everything/status")
