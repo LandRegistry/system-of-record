@@ -241,7 +241,19 @@ def republish_all_versions_of_title(republish_json):
 
 
 @app.route("/republish/everything")
-def republish_everything():
+def republish_everything_without_params():
+    return republish_everything(None, None)  # No date_from and date_to specified
+
+@app.route("/republish/everything/<date_time_from>")
+def republish_everything_with_from_param(date_time_from):
+    return republish_everything(date_time_from, None)
+
+@app.route("/republish/everything/<date_time_from>/<date_time_to>")
+def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
+    return republish_everything(date_time_from, date_time_to)
+
+
+def republish_everything(date_time_from, date_time_to):
     # check that a republish job is not already underway.
     if os.path.isfile(PATH):
         if check_job_running() == 'running':
@@ -257,9 +269,20 @@ def republish_everything():
         else:
             return "Unknown job status.", 200
     else:
+        # Get the corresponding row ids for the date supplied.
+        if date_time_from is None:
+            from_id = 0
+        else:
+            from_id = get_first_id_for_date_time(date_time_to)
+            app.logger.info('republishing everything from %s' % date_time_to)
+        if date_time_to is None:
+            to_id = get_last_system_of_record_id()
+        else:
+            to_id = get_last_id_for_date_time(date_time_to)
+            app.logger.info('republishing everything up to %s' % date_time_to)
+
         # Create a new job file
-        last_id = get_last_system_of_record_id()
-        new_job_data = {"current_id": 0, "last_id": last_id, "count": 0}
+        new_job_data = {"current_id": from_id, "last_id": to_id, "count": 0}
         with open(PATH, 'w') as f:
             json.dump(new_job_data, f, ensure_ascii=False)
         audit_message = 'New republish everything job submitted. '
@@ -269,27 +292,12 @@ def republish_everything():
         return "New republish job submitted", 200
 
 
-# @app.route("/republish/everything/<date_time_from>/<date_time_to>")
-# def republish_everything(date_time_from, date_time_to):
-        # Get the corresponding row id for the date supplied.
-        # if date_time_to is None:
-        #     last_id = get_last_system_of_record_id()
-        # else:
-        #     last_id = get_last_id_for_date_time(date_time_to)
-        #     app.logger.info('republishing everything up to %s' % date_time_to)
-        #
-        # if date_time_from is None:
-        #     first_id = 0
-        # else:
-        #     first_id = get_first_id_for_date_time(date_time_to)
-        #     app.logger.info('republishing everything from %s' % date_time_to)
-
 def get_first_id_for_date_time(date_time_from):
-    return 99981
+    return 7
 
 
 def get_last_id_for_date_time(date_time_to):
-    return 100002
+    return 10
 
 
 
