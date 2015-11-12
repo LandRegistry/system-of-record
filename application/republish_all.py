@@ -40,9 +40,13 @@ class RepublishTitles:
             self.remove_republish_all_titles_file(app)
 
 
+    def query_sor_100_at_a_time(self, db, progress_data):
+        from application.models import SignedTitles
+        return db.session.query(SignedTitles).filter(SignedTitles.id >= progress_data['current_id']).yield_per(100)
+
+
     def process_republish_all_titles_file(self, app, db):
         from .server import publish_json_to_queue
-        from application.models import SignedTitles
         with open(PATH, "r") as read_progress_file:
             progress_data = json.load(read_progress_file)
             read_progress_file.close()
@@ -51,7 +55,7 @@ class RepublishTitles:
                          % (progress_data['current_id'], progress_data['last_id']))
 
         # 100 rows returned at a time. Start iterating from the row id that is current_id.
-        for row in db.session.query(SignedTitles).filter(SignedTitles.id >= progress_data['current_id']).yield_per(100):
+        for row in self.query_sor_100_at_a_time(db, progress_data):
             if row:
                 try:
                     if row.id > progress_data['last_id']:
@@ -85,7 +89,7 @@ class RepublishTitles:
 
         # Upon success, rename to proper filename.  Rename is an atomic action.  May fail if the flask app is querying
         # the progress file, to determine job progress.
-        max_tries = 100
+        max_tries = app.config['MAX_RENAME_RETRIES']
         loop_error = None
         for i in range(max_tries):
             try:
