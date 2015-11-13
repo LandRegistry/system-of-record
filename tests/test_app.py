@@ -295,6 +295,7 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_id.side_effect = fake_id
         mock_republish.side_effect = self.do_nothing
         # start new job
+
         response = self.app.get('/republish/everything')
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
@@ -349,6 +350,7 @@ class TestSequenceFunctions(unittest.TestCase):
 
         mock_last_id.return_value = 56
         mock_first_id.return_value = 23
+
         response = self.app.get('/republish/everything/dummy_date')
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
@@ -363,7 +365,7 @@ class TestSequenceFunctions(unittest.TestCase):
 
     @mock.patch('application.server.republish_title_instance.republish_all_titles')
     @mock.patch('application.server.get_first_id_for_date_time')
-    @mock.patch('application.server.get_last_id_for_date_time') 
+    @mock.patch('application.server.get_last_id_for_date_time')
     def test_republish_everything_route_with_from_and_to_param(self, mock_last_id, mock_first_id, mock_republish):
         #erase a job file if it exists
         try:
@@ -373,9 +375,19 @@ class TestSequenceFunctions(unittest.TestCase):
 
         mock_last_id.return_value = 456789
         mock_first_id.return_value = 369
-        response = self.app.get('/republish/everything/dummy_date/dummy_date')
-        self.assertEqual(response.status, '200 OK')
-        self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
+
+        with LogCapture() as l:
+            response = self.app.get('/republish/everything/from_date/to_date')
+            self.assertEqual(response.status, '200 OK')
+            self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
+            mock_first_id.assert_called_once_with('from_date')
+            mock_last_id.assert_called_once_with('to_date')
+        l.check(
+            ('application', 'AUDIT', 'Request to republish everything from from_date'),
+            ('application', 'AUDIT', 'Request to republish everything up to to_date'),
+            ('application', 'AUDIT',
+             'New republish everything job submitted. Client ip address is: None. Signed in as: vagrant. Title number is: all titles. Logged at: system-of-record/logs/debug.log. ')
+        )
 
         with open(self.PATH, "r") as read_progress_file:
             progress_data = json.load(read_progress_file)

@@ -11,7 +11,7 @@ import re
 import os
 import os.path
 import json
-import time
+
 
 PATH='./republish_progress.json'
 
@@ -273,13 +273,13 @@ def republish_everything(date_time_from, date_time_to):
         if date_time_from is None:
             from_id = 0
         else:
-            from_id = get_first_id_for_date_time(date_time_to)
-            app.logger.info('republishing everything from %s' % date_time_to)
+            from_id = get_first_id_for_date_time(date_time_from)
+            app.logger.audit('Request to republish everything from %s' % date_time_from)
         if date_time_to is None:
             to_id = get_last_system_of_record_id()
         else:
             to_id = get_last_id_for_date_time(date_time_to)
-            app.logger.info('republishing everything up to %s' % date_time_to)
+            app.logger.audit('Request to republish everything up to %s' % date_time_to)
 
         # Create a new job file
         new_job_data = {"current_id": from_id, "last_id": to_id, "count": 0}
@@ -293,12 +293,18 @@ def republish_everything(date_time_from, date_time_to):
 
 
 def get_first_id_for_date_time(date_time_from):
-    return 7
+    # Date required in format of "2015-11-11T13:42:50.840623", Time separator T is removed with REGEX.
+    date_time_from = re.sub('[T]', ' ', date_time_from)
+    signed_titles_instance = db.session.query(SignedTitles).filter(SignedTitles.created_date >= date_time_from).first()
+    return signed_titles_instance.id
 
 
 def get_last_id_for_date_time(date_time_to):
-    return 10
-
+    # Date required in format of "2015-11-11T13:42:50.840623", Time separator T is removed with REGEX.
+    date_time_to = re.sub('[T]', ' ', date_time_to)
+    signed_titles_instance = db.session.query(SignedTitles).filter(
+        SignedTitles.created_date <= date_time_to).order_by(SignedTitles.created_date.desc()).first()
+    return signed_titles_instance.id
 
 
 @app.route("/republish/everything/status")
