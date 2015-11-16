@@ -7,7 +7,7 @@ import os
 import mock
 from sqlalchemy.exc import IntegrityError
 import time
-from python_logging.logging_utils import log_dir
+from python_logging.logging_utils import log_dir, linux_user
 import json
 from application import republish_title_instance
 from testfixtures import LogCapture
@@ -386,7 +386,8 @@ class TestSequenceFunctions(unittest.TestCase):
             ('application', 'AUDIT', 'Request to republish everything from from_date'),
             ('application', 'AUDIT', 'Request to republish everything up to to_date'),
             ('application', 'AUDIT',
-             'New republish everything job submitted. Client ip address is: None. Signed in as: vagrant. Title number is: all titles. Logged at: system-of-record/logs/debug.log. ')
+             'New republish everything job submitted. Client ip address is: None. Signed in as: %s. Title number is: all titles. Logged at: system-of-record/logs/debug.log. '
+                % linux_user())
         )
 
         with open(self.PATH, "r") as read_progress_file:
