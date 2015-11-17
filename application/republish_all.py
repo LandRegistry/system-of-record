@@ -17,14 +17,19 @@ class RepublishTitles:
 
     def __init__(self):
         self.republish_thread = None
+        self.stop_republish_thread = False
 
+    def set_stop_republish_thread(self,value):
+        self.stop_republish_thread = value
+
+    def set_republish_flag(self,value):
+        self.republish_flag = value
 
     def republish_all_in_progress(self):
         if self.republish_thread is not None:
             return self.republish_thread.isAlive()
         else:
             return False
-
 
     def republish_all_titles(self, app, db):
         # Thread to check the file for job progress and act accordingly.
@@ -58,7 +63,7 @@ class RepublishTitles:
         for row in self.query_sor_100_at_a_time(db, progress_data):
             if row:
                 try:
-                    if row.id > progress_data['last_id']:
+                    if row.id > progress_data['last_id'] or self.stop_republish_thread:
                         break
 
                     publish_json_to_queue(row.record, row.record['data']['title_number'])
@@ -102,26 +107,37 @@ class RepublishTitles:
         else:
             self.log_republish_error('Can not rename temp file after processing id: %s.  Aborting job.  Error: %s' % (progress_data['current_id'], str(loop_error)), app)
 
+    # def query_progress(self):
+    #     with open(PATH, "r") as read_progress_file:
+    #         progress_data = json.load(read_progress_file)
+    #         republish_count = progress_data['count']
+    #         republish_current_id = progress_data['current_id']
+    #
+    #
+    #         read_progress_file.close()
+
 
     def remove_republish_all_titles_file(self, app):
         republish_all_titles_file_exists = os.path.isfile(PATH)
-        if republish_all_titles_file_exists:
-            max_tries = 10
-            for i in range(max_tries):
-                try:
-                    with open(PATH, "r") as read_progress_file:
-                        progess_data = json.load(read_progress_file)
-                        read_progress_file.close()
-                    app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing.' % (
-                        progess_data['last_id'], progess_data['count']))
-                    os.remove(PATH)
-                    break
-                except Exception as err:
-                    time.sleep(1)
-                    self.log_republish_error(str(err), app)
-            else:
-                self.log_republish_error('Can not remove job file after republishing', app)
-
+        if self.republish_flag == 'stop':
+            if republish_all_titles_file_exists:
+                max_tries = 10
+                for i in range(max_tries):
+                    try:
+                        with open(PATH, "r") as read_progress_file:
+                            progess_data = json.load(read_progress_file)
+                            read_progress_file.close()
+                        app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing.' % (
+                            progess_data['last_id'], progess_data['count']))
+                        os.remove(PATH)
+                        break
+                    except Exception as err:
+                        time.sleep(1)
+                        self.log_republish_error(str(err), app)
+                else:
+                    self.log_republish_error('Can not remove job file after republishing', app)
+        else:
+            self.set_stop_republish_thread(False)
 
     def log_republish_error(self, message, app):
         from python_logging.logging_utils import linux_user
