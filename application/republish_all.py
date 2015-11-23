@@ -155,7 +155,7 @@ class RepublishTitles:
                         self.set_republish_instance_variables(0,0,0)
                     else:
                         app.logger.audit('Republish everything: Job Aborted. %s titles sent for republishing.' % (
-                            progess_data['last_id'], progess_data['count']))
+                            progess_data['count']))
                         os.remove(PATH)
                         self.set_republish_instance_variables(0,0,0)
                         self.set_republish_flag(None)

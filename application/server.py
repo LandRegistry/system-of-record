@@ -258,11 +258,11 @@ def republish_everything_with_from_param(date_time_from):
 
 @app.route("/republish/everything/<date_time_from>/<date_time_to>")
 def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
-    # if republish_title_instance.republish_flag != 'pause':
-    #     republish_title_instance.set_republish_request_flag(date_time_from + '|' + date_time_to)
+    if republish_title_instance.republish_flag != 'pause':
+        republish_title_instance.set_republish_request_flag(date_time_from + '|' + date_time_to)
         return republish_everything(date_time_from, date_time_to)
-    # else:
-    #     return 'A republish is in process, please resume'
+    else:
+        return 'A republish is in process, please resume'
 
 def republish_everything(date_time_from, date_time_to):
     # check that a republish job is not already underway.
@@ -340,8 +340,6 @@ class NoRowFoundException(Exception):
 @app.route("/republish/pause")
 def pause_republish():
     republish_title_instance.set_republish_flag('pause')
-    print(republish_title_instance.republish_flag)
-    print(republish_title_instance.republish_request_flag)
     app.logger.audit(
         make_log_msg(
             'Republishing has been paused. ',
@@ -351,28 +349,24 @@ def pause_republish():
 @app.route("/republish/abort")
 def abort_republish():
     republish_title_instance.set_republish_flag('abort')
-    republish_title_instance.remove_republish_all_titles_file(app)
+    #republish_title_instance.remove_republish_all_titles_file(app)
     app.logger.audit(
         make_log_msg(
-            'Republishing has been stopped. ',
+            'Republishing has been aborted. ',
             request, 'debug', 'n/a'))
     return 'aborted republishing from System of Record and will be reset to 0'
 
 @app.route("/republish/resume")
 def resume_republish():
-    print(republish_title_instance.republish_flag)
-    print(republish_title_instance.republish_request_flag)
     if republish_title_instance.republish_flag == 'pause':
         republish_title_instance.set_republish_flag(None)
         if republish_title_instance.republish_request_flag == 'everything':
             republish_everything_without_params()
-#         # elif "|" in republish_title_instance.republish_request_flag:
-#         #     start,end = republish_title_instance.republish_request_flag.split("|")
-#         #     republish_everything_with_from_and_to_params(start,end)
+        elif "|" in republish_title_instance.republish_request_flag:
+            start,end = republish_title_instance.republish_request_flag.split("|")
+            republish_everything_with_from_and_to_params(start,end)
         else:
             republish_everything_with_from_param(republish_title_instance.republish_request_flag)
-            print(republish_title_instance.republish_flag)
-            print(republish_title_instance.republish_request_flag)
         app.logger.audit(
             make_log_msg(
                 'Republishing has been resumed. ',
@@ -388,7 +382,6 @@ def resume_republish():
 @app.route("/republish/progress")
 def republish_progress():
     progress = progress_republish()
-    print(progress)
     return progress
 
 def progress_republish():
