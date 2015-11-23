@@ -142,12 +142,6 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual(remove_username_password('aprotocol://ausername:apassword@localhost:9876/'), 'aprotocol://localhost:9876/')
         self.assertEqual(remove_username_password(None), 'unknown endpoint')
 
-    def test_set_republish_instance_variables(self,, mock_republish_current_id, mock_republish_last_id, mock_republish_count):
-        mock_republish_count.republish_count = 1
-        mock_republish_last_id.republish_last_id = 10
-        mock_republish_current_id.republish_current_id = 3
-
-
     @mock.patch('application.server.republish_all_versions_of_title')
     def test_republish_route_for_all_versions_of_a_title(self, mock_get_all):
         REPUBLISH_TITLE_ALL_VERSIONS = '{"titles": [{"title_number":"DN1", "all_versions":true}]}'
@@ -325,6 +319,7 @@ class TestSequenceFunctions(unittest.TestCase):
 
         #erase a job file if it exists
         try:
+            time.sleep(1)
             os.remove(self.PATH)
         except:
             pass
@@ -332,6 +327,7 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_running.side_effect = fake_running
         mock_id.side_effect = fake_id
         mock_republish.side_effect = self.do_nothing
+        import pdb; pdb.set_trace()
         # start new job
         response = self.app.get('/republish/everything')
         self.assertEqual(response.status, '200 OK')
@@ -544,12 +540,29 @@ class TestSequenceFunctions(unittest.TestCase):
         with open(self.PATH, 'w') as f:
             json.dump(new_job_data, f, ensure_ascii=False)
 
+    @mock.patch('application.server.get_last_system_of_record_id')
+    @mock.patch('application.server.check_job_running')
+    @mock.patch('application.server.republish_title_instance.republish_all_titles')
+    @mock.patch('application.server.pause_republish')
+    def test_republish_everything_route_with_paused_job(self, mock_pause_republish, mock_republish, mock_running, mock_id):
 
+        def fake_id():
+            return 1
+        def fake_running():
+            return 'running'
 
+        #erase a job file if it exists
+        try:
+            os.remove(self.PATH)
+        except:
+            pass
 
+        mock_running.side_effect = fake_running
+        mock_id.side_effect = fake_id
+        mock_republish.side_effect = self.do_nothing
 
-
-
-
-
-
+        # pause the job
+        mock_pause_republish.side_effect = 'paused republishing from System of Record and will resume on the republish command'
+        response = self.app.get('/republish/pause')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("paused republishing from System of Record and will resume on the republish command", response.data.decode("utf-8"))
