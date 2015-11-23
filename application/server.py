@@ -242,19 +242,27 @@ def republish_all_versions_of_title(republish_json):
 
 @app.route("/republish/everything")
 def republish_everything_without_params():
-    #republish_title_instance.set_republish_flag('started')
-    return republish_everything(None, None)  # No date_from and date_to specified
+    if republish_title_instance.republish_flag != 'pause':
+        republish_title_instance.set_republish_request_flag('everything')
+        return republish_everything(None, None)  # No date_from and date_to specified
+    else:
+        return 'A republish is in process, please resume'
 
 @app.route("/republish/everything/<date_time_from>")
 def republish_everything_with_from_param(date_time_from):
-   #republish_title_instance.set_republish_flag('started')
-    return republish_everything(date_time_from, None)
+    if republish_title_instance.republish_flag != 'pause':
+        republish_title_instance.set_republish_request_flag(date_time_from)
+        return republish_everything(date_time_from, None)
+    else:
+        return 'A republish is in process, please resume'
 
 @app.route("/republish/everything/<date_time_from>/<date_time_to>")
 def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
-   # republish_title_instance.set_republish_flag('started')
-    return republish_everything(date_time_from, date_time_to)
-
+    # if republish_title_instance.republish_flag != 'pause':
+    #     republish_title_instance.set_republish_request_flag(date_time_from + '|' + date_time_to)
+        return republish_everything(date_time_from, date_time_to)
+    # else:
+    #     return 'A republish is in process, please resume'
 
 def republish_everything(date_time_from, date_time_to):
     # check that a republish job is not already underway.
@@ -331,29 +339,65 @@ class NoRowFoundException(Exception):
 
 @app.route("/republish/pause")
 def pause_republish():
-    republish_title_instance.set_stop_republish_thread(True)
     republish_title_instance.set_republish_flag('pause')
+    print(republish_title_instance.republish_flag)
+    print(republish_title_instance.republish_request_flag)
     app.logger.audit(
         make_log_msg(
             'Republishing has been paused. ',
             request, 'debug', 'n/a'))
     return 'paused republishing from System of Record and will resume on the republish command'
 
-@app.route("/republish/stop")
-def stop_republish():
-    republish_title_instance.set_stop_republish_thread(True)
-    republish_title_instance.set_republish_flag('stop')
+@app.route("/republish/abort")
+def abort_republish():
+    republish_title_instance.set_republish_flag('abort')
+    republish_title_instance.remove_republish_all_titles_file(app)
     app.logger.audit(
         make_log_msg(
             'Republishing has been stopped. ',
             request, 'debug', 'n/a'))
-    return 'stopped republishing from System of Record and will be reset to 0'
+    return 'aborted republishing from System of Record and will be reset to 0'
 
-# @app.route("/republish/progress")
-# def progress_republish():
-#     return{
-#         :republish_started => check_job_running(),
-#         :total_records => check_job_running(),
-#         :left_to_republish => check_job_running(),
-#         :republish_current_id =>check_job_running(),
-#         :republish_max_id => check_job_running()}.to_json
+@app.route("/republish/resume")
+def resume_republish():
+    print(republish_title_instance.republish_flag)
+    print(republish_title_instance.republish_request_flag)
+    if republish_title_instance.republish_flag == 'pause':
+        republish_title_instance.set_republish_flag(None)
+        if republish_title_instance.republish_request_flag == 'everything':
+            republish_everything_without_params()
+#         # elif "|" in republish_title_instance.republish_request_flag:
+#         #     start,end = republish_title_instance.republish_request_flag.split("|")
+#         #     republish_everything_with_from_and_to_params(start,end)
+        else:
+            republish_everything_with_from_param(republish_title_instance.republish_request_flag)
+            print(republish_title_instance.republish_flag)
+            print(republish_title_instance.republish_request_flag)
+        app.logger.audit(
+            make_log_msg(
+                'Republishing has been resumed. ',
+                request, 'debug', 'n/a'))
+        return 'republishing has been resumed'
+    else:
+        app.logger.audit(
+            make_log_msg(
+                'Republishing is not in process, unable to resume. ',
+                request, 'debug', 'n/a'))
+        return 'Republishing cannot resume as no job in process'
+
+@app.route("/republish/progress")
+def republish_progress():
+    progress = progress_republish()
+    print(progress)
+    return progress
+
+def progress_republish():
+    if os.path.exists(PATH):
+        republish_counts = republish_title_instance.get_republish_instance_variable()
+        republish_counts['republish_started'] = 'true'
+        display = json.dumps(republish_counts)
+    else:
+        republish_counts = republish_title_instance.get_republish_instance_variable()
+        republish_counts['republish_started'] = 'false'
+        display = json.dumps(republish_counts)
+    return (display)

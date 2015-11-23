@@ -142,6 +142,11 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual(remove_username_password('aprotocol://ausername:apassword@localhost:9876/'), 'aprotocol://localhost:9876/')
         self.assertEqual(remove_username_password(None), 'unknown endpoint')
 
+    def test_set_republish_instance_variables(self,, mock_republish_current_id, mock_republish_last_id, mock_republish_count):
+        mock_republish_count.republish_count = 1
+        mock_republish_last_id.republish_last_id = 10
+        mock_republish_current_id.republish_current_id = 3
+
 
     @mock.patch('application.server.republish_all_versions_of_title')
     def test_republish_route_for_all_versions_of_a_title(self, mock_get_all):
