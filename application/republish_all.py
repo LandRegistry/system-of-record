@@ -34,9 +34,6 @@ class RepublishTitles:
     def set_republish_flag(self,value):
         self.republish_flag = value
 
-    def set_republish_request_flag(self,value):
-        self.republish_request_flag = value
-
     def republish_all_in_progress(self):
         if self.republish_thread is not None:
             return self.republish_thread.isAlive()
@@ -152,7 +149,6 @@ class RepublishTitles:
                     elif self.republish_flag == 'pause':
                         app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing. Currently paused.' % (
                             progess_data['last_id'], progess_data['count']))
-                        self.set_republish_instance_variables(0,0,0)
                     else:
                         app.logger.audit('Republish everything: Job Aborted. %s titles sent for republishing.' % (
                             progess_data['count']))

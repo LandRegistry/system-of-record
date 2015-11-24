@@ -242,27 +242,16 @@ def republish_all_versions_of_title(republish_json):
 
 @app.route("/republish/everything")
 def republish_everything_without_params():
-    if republish_title_instance.republish_flag != 'pause':
-        republish_title_instance.set_republish_request_flag('everything')
-        return republish_everything(None, None)  # No date_from and date_to specified
-    else:
-        return 'A republish is in process, please resume'
+    republish_title_instance.set_republish_flag(None)
+    return republish_everything(None, None)  # No date_from and date_to specified
 
 @app.route("/republish/everything/<date_time_from>")
 def republish_everything_with_from_param(date_time_from):
-    if republish_title_instance.republish_flag != 'pause':
-        republish_title_instance.set_republish_request_flag(date_time_from)
-        return republish_everything(date_time_from, None)
-    else:
-        return 'A republish is in process, please resume'
+    return republish_everything(date_time_from, None)
 
 @app.route("/republish/everything/<date_time_from>/<date_time_to>")
 def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
-    if republish_title_instance.republish_flag != 'pause':
-        republish_title_instance.set_republish_request_flag(date_time_from + '|' + date_time_to)
-        return republish_everything(date_time_from, date_time_to)
-    else:
-        return 'A republish is in process, please resume'
+    return republish_everything(date_time_from, date_time_to)
 
 def republish_everything(date_time_from, date_time_to):
     # check that a republish job is not already underway.
@@ -349,7 +338,6 @@ def pause_republish():
 @app.route("/republish/abort")
 def abort_republish():
     republish_title_instance.set_republish_flag('abort')
-    #republish_title_instance.remove_republish_all_titles_file(app)
     app.logger.audit(
         make_log_msg(
             'Republishing has been aborted. ',
@@ -360,13 +348,7 @@ def abort_republish():
 def resume_republish():
     if republish_title_instance.republish_flag == 'pause':
         republish_title_instance.set_republish_flag(None)
-        if republish_title_instance.republish_request_flag == 'everything':
-            republish_everything_without_params()
-        elif "|" in republish_title_instance.republish_request_flag:
-            start,end = republish_title_instance.republish_request_flag.split("|")
-            republish_everything_with_from_and_to_params(start,end)
-        else:
-            republish_everything_with_from_param(republish_title_instance.republish_request_flag)
+        republish_everything_without_params()
         app.logger.audit(
             make_log_msg(
                 'Republishing has been resumed. ',
@@ -375,9 +357,9 @@ def resume_republish():
     else:
         app.logger.audit(
             make_log_msg(
-                'Republishing is not in process, unable to resume. ',
+                'Republishing is not in progress, unable to resume. ',
                 request, 'debug', 'n/a'))
-        return 'Republishing cannot resume as no job in process'
+        return 'Republishing cannot resume as no job in progress'
 
 @app.route("/republish/progress")
 def republish_progress():
