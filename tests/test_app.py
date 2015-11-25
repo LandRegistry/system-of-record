@@ -319,7 +319,7 @@ class TestSequenceFunctions(unittest.TestCase):
 
         #erase a job file if it exists
         try:
-            time.sleep(1)
+            #time.sleep(1)
             os.remove(self.PATH)
         except:
             pass
@@ -338,9 +338,6 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("Republish job already in progress", response.data.decode("utf-8"))
 
-        # resume the job
-        self.app.get('/republish/resume')
-
     @mock.patch('application.server.get_last_system_of_record_id')
     @mock.patch('application.server.check_job_running')
     @mock.patch('application.server.republish_title_instance.republish_all_titles')
@@ -353,7 +350,7 @@ class TestSequenceFunctions(unittest.TestCase):
 
         #erase a job file if it exists
         try:
-            time.sleep(1)
+            #time.sleep(1)
             os.remove(self.PATH)
         except:
             pass
@@ -370,7 +367,7 @@ class TestSequenceFunctions(unittest.TestCase):
         # pause the job
         response = self.app.get('/republish/pause')
         self.assertEqual(response.status, '200 OK')
-        self.assertEquals("paused republishing from System of Record and will resume on the republish command", response.data.decode("utf-8"))
+        self.assertEquals("paused republishing from System of Record and will re-start on the resume command", response.data.decode("utf-8"))
 
         # resume the job
         self.app.get('/republish/resume')
@@ -598,10 +595,10 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_republish.side_effect = self.do_nothing
 
         # pause the job
-        mock_pause_republish.side_effect = 'paused republishing from System of Record and will resume on the republish command'
+        mock_pause_republish.side_effect = 'paused republishing from System of Record and will re-start on the resume command'
         response = self.app.get('/republish/pause')
         self.assertEqual(response.status, '200 OK')
-        self.assertEquals("paused republishing from System of Record and will resume on the republish command", response.data.decode("utf-8"))
+        self.assertEquals("paused republishing from System of Record and will re-start on the resume command", response.data.decode("utf-8"))
 
         # resume job
         self.app.get('/republish/resume')
@@ -612,7 +609,7 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_set_republish_flag.side_effect = 'abort'
         response = self.app.get('/republish/abort')
         self.assertEqual(response.status, '200 OK')
-        self.assertEquals("aborted republishing from System of Record and will be reset to 0", response.data.decode("utf-8"))
+        self.assertEquals("aborted republishing from System of Record", response.data.decode("utf-8"))
 
     @mock.patch('application.server.republish_title_instance.get_republish_instance_variable')
     def test_republish_progress_no_job(self, mock_republish_instance):
@@ -665,7 +662,7 @@ class TestSequenceFunctions(unittest.TestCase):
 
         #erase a job file if it exists
         try:
-            time.sleep(1)
+            #time.sleep(1)
             os.remove(self.PATH)
         except:
             pass
@@ -683,7 +680,7 @@ class TestSequenceFunctions(unittest.TestCase):
         # pause the job
         response = self.app.get('/republish/pause')
         self.assertEqual(response.status, '200 OK')
-        self.assertEquals("paused republishing from System of Record and will resume on the republish command", response.data.decode("utf-8"))
+        self.assertEquals("paused republishing from System of Record and will re-start on the resume command", response.data.decode("utf-8"))
 
         mock_running.return_value = ''
 

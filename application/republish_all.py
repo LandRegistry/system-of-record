@@ -21,7 +21,6 @@ class RepublishTitles:
         self.republish_current_id = 0
         self.republish_last_id = 0
         self.republish_count = 0
-        self.republish_request_flag = None
 
     def set_republish_instance_variables(self, republish_current_id, republish_last_id, republish_count):
         self.republish_current_id = republish_current_id
@@ -121,16 +120,6 @@ class RepublishTitles:
         else:
             self.log_republish_error('Can not rename temp file after processing id: %s.  Aborting job.  Error: %s' % (progress_data['current_id'], str(loop_error)), app)
 
-    # def query_progress(self):
-    #     with open(PATH, "r") as read_progress_file:
-    #         progress_data = json.load(read_progress_file)
-    #         republish_count = progress_data['count']
-    #         republish_current_id = progress_data['current_id']
-    #
-    #
-    #         read_progress_file.close()
-
-
     def remove_republish_all_titles_file(self, app):
         republish_all_titles_file_exists = os.path.isfile(PATH)
         if republish_all_titles_file_exists:
@@ -140,21 +129,19 @@ class RepublishTitles:
                     with open(PATH, "r") as read_progress_file:
                         progess_data = json.load(read_progress_file)
                         read_progress_file.close()
-                    if self.republish_flag is None:
-                        app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing.' % (
-                            progess_data['last_id'], progess_data['count']))
-                        os.remove(PATH)
-                        self.set_republish_flag(None)
-                        self.set_republish_instance_variables(0,0,0)
-                    elif self.republish_flag == 'pause':
+                    if self.republish_flag == 'pause':
                         app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing. Currently paused.' % (
                             progess_data['last_id'], progess_data['count']))
                     else:
-                        app.logger.audit('Republish everything: Job Aborted. %s titles sent for republishing.' % (
-                            progess_data['count']))
-                        os.remove(PATH)
-                        self.set_republish_instance_variables(0,0,0)
-                        self.set_republish_flag(None)
+                         if self.republish_flag is None:
+                             app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing.' % (
+                                 progess_data['last_id'], progess_data['count']))
+                         else:
+                             app.logger.audit('Republish everything: Job Aborted. %s titles sent for republishing.' % (
+                                 progess_data['count']))
+                         os.remove(PATH)
+                         self.set_republish_instance_variables(0,0,0)
+                         self.set_republish_flag(None)
                     break
                 except Exception as err:
                     time.sleep(1)

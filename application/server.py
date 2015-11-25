@@ -333,7 +333,7 @@ def pause_republish():
         make_log_msg(
             'Republishing has been paused. ',
             request, 'debug', 'n/a'))
-    return 'paused republishing from System of Record and will resume on the republish command'
+    return 'paused republishing from System of Record and will re-start on the resume command'
 
 @app.route("/republish/abort")
 def abort_republish():
@@ -342,7 +342,7 @@ def abort_republish():
         make_log_msg(
             'Republishing has been aborted. ',
             request, 'debug', 'n/a'))
-    return 'aborted republishing from System of Record and will be reset to 0'
+    return 'aborted republishing from System of Record'
 
 @app.route("/republish/resume")
 def resume_republish():
@@ -367,12 +367,10 @@ def republish_progress():
     return progress
 
 def progress_republish():
+    republish_counts = republish_title_instance.get_republish_instance_variable()
     if os.path.exists(PATH):
-        republish_counts = republish_title_instance.get_republish_instance_variable()
         republish_counts['republish_started'] = 'true'
-        display = json.dumps(republish_counts)
     else:
-        republish_counts = republish_title_instance.get_republish_instance_variable()
         republish_counts['republish_started'] = 'false'
-        display = json.dumps(republish_counts)
+    display = json.dumps(republish_counts)
     return (display)
