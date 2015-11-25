@@ -346,7 +346,7 @@ def abort_republish():
 
 @app.route("/republish/resume")
 def resume_republish():
-    if republish_title_instance.republish_flag == 'pause':
+    if os.path.isfile(PATH):
         republish_title_instance.set_republish_flag(None)
         republish_everything_without_params()
         app.logger.audit(
