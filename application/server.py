@@ -242,6 +242,7 @@ def republish_all_versions_of_title(republish_json):
 
 @app.route("/republish/everything")
 def republish_everything_without_params():
+    republish_title_instance.set_republish_flag(None)
     return republish_everything(None, None)  # No date_from and date_to specified
 
 @app.route("/republish/everything/<date_time_from>")
@@ -251,7 +252,6 @@ def republish_everything_with_from_param(date_time_from):
 @app.route("/republish/everything/<date_time_from>/<date_time_to>")
 def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
     return republish_everything(date_time_from, date_time_to)
-
 
 def republish_everything(date_time_from, date_time_to):
     # check that a republish job is not already underway.
@@ -326,6 +326,51 @@ def execute_query(sql):
 class NoRowFoundException(Exception):
     pass
 
+@app.route("/republish/pause")
+def pause_republish():
+    republish_title_instance.set_republish_flag('pause')
+    app.logger.audit(
+        make_log_msg(
+            'Republishing has been paused. ',
+            request, 'debug', 'n/a'))
+    return 'paused republishing from System of Record and will re-start on the resume command'
 
+@app.route("/republish/abort")
+def abort_republish():
+    republish_title_instance.set_republish_flag('abort')
+    app.logger.audit(
+        make_log_msg(
+            'Republishing has been aborted. ',
+            request, 'debug', 'n/a'))
+    return 'aborted republishing from System of Record'
 
+@app.route("/republish/resume")
+def resume_republish():
+    if os.path.isfile(PATH):
+        republish_title_instance.set_republish_flag(None)
+        republish_everything_without_params()
+        app.logger.audit(
+            make_log_msg(
+                'Republishing has been resumed. ',
+                request, 'debug', 'n/a'))
+        return 'republishing has been resumed'
+    else:
+        app.logger.audit(
+            make_log_msg(
+                'Republishing is not in progress, unable to resume. ',
+                request, 'debug', 'n/a'))
+        return 'Republishing cannot resume as no job in progress'
 
+@app.route("/republish/progress")
+def republish_progress():
+    progress = progress_republish()
+    return progress
+
+def progress_republish():
+    republish_counts = republish_title_instance.get_republish_instance_variable()
+    if os.path.exists(PATH):
+        republish_counts['republish_started'] = 'true'
+    else:
+        republish_counts['republish_started'] = 'false'
+    display = json.dumps(republish_counts)
+    return (display)
