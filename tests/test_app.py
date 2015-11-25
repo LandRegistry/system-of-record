@@ -619,7 +619,11 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_republish_instance.return_value = {"republish_current_id": 3, "republish_max_id": 100, "total_records_published": 3}
         response = self.app.get('/republish/progress')
         self.assertEqual(response.status, '200 OK')
-        self.assertEquals('{"republish_started": "false", "republish_current_id": 3, "republish_max_id": 100, "total_records_published": 3"}', response.data.decode("utf-8"))
+        response_dict = json.loads(response.data.decode("utf-8"))
+        self.assertEquals("false", response_dict["republish_started"])
+        self.assertEquals(3, response_dict["republish_current_id"])
+        self.assertEquals(100, response_dict["republish_max_id"])
+        self.assertEquals(3, response_dict["total_records_published"])
 
     @mock.patch('application.server.get_last_system_of_record_id')
     @mock.patch('application.server.republish_title_instance.get_republish_instance_variable')
@@ -639,7 +643,11 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_republish_instance.return_value = {"republish_current_id": 3, "republish_max_id": 100, "total_records_published": 3}
         response = self.app.get('/republish/progress')
         self.assertEqual(response.status, '200 OK')
-        self.assertEquals('{"republish_started": "true", "republish_current_id": 3, "republish_max_id": 100, "total_records_published": 3"}', response.data.decode("utf-8"))
+        response_dict = json.loads(response.data.decode("utf-8"))
+        self.assertEquals("true", response_dict["republish_started"])
+        self.assertEquals(3, response_dict["republish_current_id"])
+        self.assertEquals(100, response_dict["republish_max_id"])
+        self.assertEquals(3, response_dict["total_records_published"])
 
         republish_title_instance.remove_republish_all_titles_file(app)
 
