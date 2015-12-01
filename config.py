@@ -41,3 +41,6 @@ class ProductionConfig(Config):
 
 class NewAConfig(Config):
     DEBUG = False
+
+class NewBConfig(Config):
+    DEBUG = False
