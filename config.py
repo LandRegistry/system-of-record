@@ -36,3 +36,6 @@ class OatConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
+
+class NewAConfig(Config):
+    DEBUG = False
