@@ -367,10 +367,10 @@ def republish_progress():
     return progress
 
 def progress_republish():
-    republish_counts = republish_title_instance.get_republish_instance_variable()
+    republish_counts = republish_title_instance.get_republish_instance_variable(db)
     if os.path.exists(PATH):
-        republish_counts['republish_started'] = 'true'
+        republish_counts['republish_started'] = True
     else:
-        republish_counts['republish_started'] = 'false'
+        republish_counts['republish_started'] = False
     display = json.dumps(republish_counts)
     return (display)

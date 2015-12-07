@@ -21,14 +21,16 @@ class RepublishTitles:
         self.republish_current_id = 0
         self.republish_last_id = 0
         self.republish_count = 0
+        self.total_records = 0
 
     def set_republish_instance_variables(self, republish_current_id, republish_last_id, republish_count):
         self.republish_current_id = republish_current_id
         self.republish_last_id = republish_last_id
         self.republish_count = republish_count
 
-    def get_republish_instance_variable(self):
-        return {"republish_current_id": self.republish_current_id, "republish_max_id": self.republish_last_id, "total_records_published": self.republish_count}
+    def get_republish_instance_variable(self, db):
+        self.total_records = self.query_total_sor_titles(db)
+        return {"republish_current_id": self.republish_current_id, "republish_max_id": self.republish_last_id, "total_records_published": self.republish_count, "total_records": self.total_records}
 
     def set_republish_flag(self,value):
         self.republish_flag = value
@@ -52,6 +54,9 @@ class RepublishTitles:
             self.process_republish_all_titles_file(app, db)
             self.remove_republish_all_titles_file(app)
 
+    def query_total_sor_titles(self, db):
+        from application.models import SignedTitles
+        return db.session.query(SignedTitles).count()
 
     def query_sor_100_at_a_time(self, db, progress_data):
         from application.models import SignedTitles
@@ -90,7 +95,7 @@ class RepublishTitles:
                     self.update_progress(app, progress_data)
 
             # Update progress in the file for every 10000 processed rows
-            if progress_data['current_id'] % 10000 == 0:
+            if progress_data['current_id'] % 1000 == 0:
                 self.update_progress(app, progress_data)
 
 
