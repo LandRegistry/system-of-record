@@ -17,14 +17,27 @@ class RepublishTitles:
 
     def __init__(self):
         self.republish_thread = None
+        self.republish_flag = None
+        self.republish_current_id = 0
+        self.republish_last_id = 0
+        self.republish_count = 0
 
+    def set_republish_instance_variables(self, republish_current_id, republish_last_id, republish_count):
+        self.republish_current_id = republish_current_id
+        self.republish_last_id = republish_last_id
+        self.republish_count = republish_count
+
+    def get_republish_instance_variable(self):
+        return {"republish_current_id": self.republish_current_id, "republish_max_id": self.republish_last_id, "total_records_published": self.republish_count}
+
+    def set_republish_flag(self,value):
+        self.republish_flag = value
 
     def republish_all_in_progress(self):
         if self.republish_thread is not None:
             return self.republish_thread.isAlive()
         else:
             return False
-
 
     def republish_all_titles(self, app, db):
         # Thread to check the file for job progress and act accordingly.
@@ -36,41 +49,50 @@ class RepublishTitles:
     def check_for_republish_all_titles_file(self, app, db):
         republish_all_titles_file_exists = os.path.isfile(PATH)
         if republish_all_titles_file_exists:
-            app.logger.audit('Republish everything: processing a request to republish all titles. ')
             self.process_republish_all_titles_file(app, db)
             self.remove_republish_all_titles_file(app)
 
 
+    def query_sor_100_at_a_time(self, db, progress_data):
+        from application.models import SignedTitles
+        return db.session.query(SignedTitles).filter(SignedTitles.id >= progress_data['current_id']).order_by(SignedTitles.id).yield_per(100)
+
+
     def process_republish_all_titles_file(self, app, db):
         from .server import publish_json_to_queue
-        from application.models import SignedTitles
-
         with open(PATH, "r") as read_progress_file:
             progress_data = json.load(read_progress_file)
             read_progress_file.close()
 
-        current_id = progress_data['current_id']
-        progress_count = progress_data['count']
+        app.logger.audit('Republish everything: processing a request to republish all titles from row ids %s to %s.'
+                         % (progress_data['current_id'], progress_data['last_id']))
 
-        # 100 rows returned at a time. Start querying from offset value.
-        for row in db.session.query(SignedTitles).offset(current_id).yield_per(100):
+        # 100 rows returned at a time. Start iterating from the row id that is current_id.
+        for row in self.query_sor_100_at_a_time(db, progress_data):
             if row:
                 try:
-                    publish_json_to_queue(row.record, row.record['data']['title_number'])
-                    progress_count += 1
-                    progress_data['count'] = progress_count
                     progress_data['current_id'] = row.id
+                    current_id = progress_data['current_id']
+                    if row.id > progress_data['last_id'] or self.republish_flag is not None:
+                        break
+
+                    publish_json_to_queue(row.record, row.record['data']['title_number'])
+                    progress_data['count'] += 1
+                    self.set_republish_instance_variables(progress_data['current_id'], progress_data['last_id'],
+                                                          progress_data['count'])
+
 
                 except Exception as err:
                     self.log_republish_error(
                         'Could not republish for row id %s owing to following error %s. ' % (
-                        current_id, str(err)), app)
+                            progress_data['current_id'], str(err)), app)
                     # Update the progress file upon error
                     self.update_progress(app, progress_data)
 
             # Update progress in the file for every 10000 processed rows
-            if progress_count % 10000 == 0:
+            if progress_data['current_id'] % 10000 == 0:
                 self.update_progress(app, progress_data)
+
 
         # Update the progress file upon completion
         self.update_progress(app, progress_data)
@@ -85,7 +107,7 @@ class RepublishTitles:
 
         # Upon success, rename to proper filename.  Rename is an atomic action.  May fail if the flask app is querying
         # the progress file, to determine job progress.
-        max_tries = 100
+        max_tries = app.config['MAX_RENAME_RETRIES']
         loop_error = None
         for i in range(max_tries):
             try:
@@ -98,7 +120,6 @@ class RepublishTitles:
         else:
             self.log_republish_error('Can not rename temp file after processing id: %s.  Aborting job.  Error: %s' % (progress_data['current_id'], str(loop_error)), app)
 
-
     def remove_republish_all_titles_file(self, app):
         republish_all_titles_file_exists = os.path.isfile(PATH)
         if republish_all_titles_file_exists:
@@ -108,16 +129,25 @@ class RepublishTitles:
                     with open(PATH, "r") as read_progress_file:
                         progess_data = json.load(read_progress_file)
                         read_progress_file.close()
-                    app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing.' % (
-                        progess_data['last_id'], progess_data['count']))
-                    os.remove(PATH)
+                    if self.republish_flag == 'pause':
+                        app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing. Currently paused.' % (
+                            progess_data['last_id'], progess_data['count']))
+                    else:
+                         if self.republish_flag is None:
+                             app.logger.audit('Republish everything: Row IDs up to %s checked. %s titles sent for republishing.' % (
+                                 progess_data['last_id'], progess_data['count']))
+                         else:
+                             app.logger.audit('Republish everything: Job Aborted. %s titles sent for republishing.' % (
+                                 progess_data['count']))
+                         os.remove(PATH)
+                         self.set_republish_instance_variables(0,0,0)
+                         self.set_republish_flag(None)
                     break
                 except Exception as err:
                     time.sleep(1)
                     self.log_republish_error(str(err), app)
             else:
                 self.log_republish_error('Can not remove job file after republishing', app)
-
 
     def log_republish_error(self, message, app):
         from python_logging.logging_utils import linux_user

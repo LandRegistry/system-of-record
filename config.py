@@ -7,6 +7,7 @@ class Config(object):
     RABBIT_QUEUE = os.getenv('RABBIT_QUEUE', 'system_of_record')
     RABBIT_ROUTING_KEY = os.getenv('RABBIT_ROUTING_KEY', 'system_of_record')
     LOGGING_PATH = os.getenv('LOGGING_PATH', 'python_logging/logging.yaml')
+    MAX_RENAME_RETRIES = 100
     DEBUG = False
 
 class DevelopmentConfig(Config):
@@ -19,6 +20,7 @@ class UnitTestConfig(Config):
     RABBIT_QUEUE = ''
     RABBIT_ROUTING_KEY = ''
     DEBUG = True
+    MAX_RENAME_RETRIES = 1
 
 class PreviewConfig(Config):
     LOGGING_PATH = 'python_logging/logging.yaml'

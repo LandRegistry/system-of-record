@@ -11,7 +11,7 @@ import re
 import os
 import os.path
 import json
-import time
+
 
 PATH='./republish_progress.json'
 
@@ -241,7 +241,19 @@ def republish_all_versions_of_title(republish_json):
 
 
 @app.route("/republish/everything")
-def republish_everything():
+def republish_everything_without_params():
+    republish_title_instance.set_republish_flag(None)
+    return republish_everything(None, None)  # No date_from and date_to specified
+
+@app.route("/republish/everything/<date_time_from>")
+def republish_everything_with_from_param(date_time_from):
+    return republish_everything(date_time_from, None)
+
+@app.route("/republish/everything/<date_time_from>/<date_time_to>")
+def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
+    return republish_everything(date_time_from, date_time_to)
+
+def republish_everything(date_time_from, date_time_to):
     # check that a republish job is not already underway.
     if os.path.isfile(PATH):
         if check_job_running() == 'running':
@@ -249,7 +261,7 @@ def republish_everything():
             app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
             return "Republish job already in progress", 200
         elif check_job_running() == 'not running':
-            audit_message = 'New republish everything job resumed. '
+            audit_message = 'Existing republish everything job resumed. '
             app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
             # resume republishing events.
             republish_title_instance.republish_all_titles(app, db)
@@ -257,9 +269,20 @@ def republish_everything():
         else:
             return "Unknown job status.", 200
     else:
-        last_id = get_last_system_of_record_id()
+        # Get the corresponding row ids for the date supplied.
+        if date_time_from is None:
+            from_id = 0
+        else:
+            from_id = get_first_id_for_date_time(date_time_from)
+            app.logger.audit('Request to republish everything from %s' % date_time_from)
+        if date_time_to is None:
+            to_id = get_last_system_of_record_id()
+        else:
+            to_id = get_last_id_for_date_time(date_time_to)
+            app.logger.audit('Request to republish everything up to %s' % date_time_to)
+
         # Create a new job file
-        new_job_data = {"current_id": 0, "last_id": last_id, "count": 0}
+        new_job_data = {"current_id": from_id, "last_id": to_id, "count": 0}
         with open(PATH, 'w') as f:
             json.dump(new_job_data, f, ensure_ascii=False)
         audit_message = 'New republish everything job submitted. '
@@ -267,6 +290,21 @@ def republish_everything():
         # Check for and process republishing events.
         republish_title_instance.republish_all_titles(app, db)
         return "New republish job submitted", 200
+
+
+def get_first_id_for_date_time(date_time_from):
+    # Date required in format of "2015-11-11T13:42:50.840623", Time separator T is removed with REGEX.
+    date_time_from = re.sub('[T]', ' ', date_time_from)
+    signed_titles_instance = db.session.query(SignedTitles).filter(SignedTitles.created_date >= date_time_from).first()
+    return signed_titles_instance.id
+
+
+def get_last_id_for_date_time(date_time_to):
+    # Date required in format of "2015-11-11T13:42:50.840623", Time separator T is removed with REGEX.
+    date_time_to = re.sub('[T]', ' ', date_time_to)
+    signed_titles_instance = db.session.query(SignedTitles).filter(
+        SignedTitles.created_date <= date_time_to).order_by(SignedTitles.created_date.desc()).first()
+    return signed_titles_instance.id
 
 
 @app.route("/republish/everything/status")
@@ -288,6 +326,51 @@ def execute_query(sql):
 class NoRowFoundException(Exception):
     pass
 
+@app.route("/republish/pause")
+def pause_republish():
+    republish_title_instance.set_republish_flag('pause')
+    app.logger.audit(
+        make_log_msg(
+            'Republishing has been paused. ',
+            request, 'debug', 'n/a'))
+    return 'paused republishing from System of Record and will re-start on the resume command'
 
+@app.route("/republish/abort")
+def abort_republish():
+    republish_title_instance.set_republish_flag('abort')
+    app.logger.audit(
+        make_log_msg(
+            'Republishing has been aborted. ',
+            request, 'debug', 'n/a'))
+    return 'aborted republishing from System of Record'
 
+@app.route("/republish/resume")
+def resume_republish():
+    if os.path.isfile(PATH):
+        republish_title_instance.set_republish_flag(None)
+        republish_everything_without_params()
+        app.logger.audit(
+            make_log_msg(
+                'Republishing has been resumed. ',
+                request, 'debug', 'n/a'))
+        return 'republishing has been resumed'
+    else:
+        app.logger.audit(
+            make_log_msg(
+                'Republishing is not in progress, unable to resume. ',
+                request, 'debug', 'n/a'))
+        return 'Republishing cannot resume as no job in progress'
 
+@app.route("/republish/progress")
+def republish_progress():
+    progress = progress_republish()
+    return progress
+
+def progress_republish():
+    republish_counts = republish_title_instance.get_republish_instance_variable()
+    if os.path.exists(PATH):
+        republish_counts['republish_started'] = 'true'
+    else:
+        republish_counts['republish_started'] = 'false'
+    display = json.dumps(republish_counts)
+    return (display)

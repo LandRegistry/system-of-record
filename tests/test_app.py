@@ -7,7 +7,7 @@ import os
 import mock
 from sqlalchemy.exc import IntegrityError
 import time
-from python_logging.logging_utils import log_dir
+from python_logging.logging_utils import log_dir, linux_user
 import json
 from application import republish_title_instance
 from testfixtures import LogCapture
@@ -17,6 +17,11 @@ INCORRECT_TEST_TITLE = '{"missing closing speech marks :"some_signed_data","data
 
 class TestException(Exception):
     pass
+
+class FakeSignedTitles():
+    def __init__(self, set_id, record):
+        self.id = set_id
+        self.record = record
 
 class TestSequenceFunctions(unittest.TestCase):
 
@@ -137,7 +142,6 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual(remove_username_password('aprotocol://ausername:apassword@localhost:9876/'), 'aprotocol://localhost:9876/')
         self.assertEqual(remove_username_password(None), 'unknown endpoint')
 
-
     @mock.patch('application.server.republish_all_versions_of_title')
     def test_republish_route_for_all_versions_of_a_title(self, mock_get_all):
         REPUBLISH_TITLE_ALL_VERSIONS = '{"titles": [{"title_number":"DN1", "all_versions":true}]}'
@@ -216,6 +220,7 @@ class TestSequenceFunctions(unittest.TestCase):
     def one_row_response(self, *args):
         return [({'sig': 'some_signed_data', 'data': {'title_number': 'DN1'}},)]
 
+
     def zero_row_response(self, *args):
         return []
 
@@ -289,6 +294,7 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_id.side_effect = fake_id
         mock_republish.side_effect = self.do_nothing
         # start new job
+
         response = self.app.get('/republish/everything')
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
@@ -304,23 +310,24 @@ class TestSequenceFunctions(unittest.TestCase):
     @mock.patch('application.server.get_last_system_of_record_id')
     @mock.patch('application.server.check_job_running')
     @mock.patch('application.server.republish_title_instance.republish_all_titles')
-    def test_republish_route_with_running_job(self, mock_republish, mock_running, mock_id):
+    def test_republish_everything_route_with_running_job(self, mock_republish, mock_running, mock_id):
 
         def fake_id():
             return 1
         def fake_running():
             return 'running'
-        def clear_progress_file():
-            #erase a job file if it exists
-            try:
-                os.remove(self.PATH)
-            except:
-                pass
 
-        clear_progress_file()
+        #erase a job file if it exists
+        try:
+            #time.sleep(1)
+            os.remove(self.PATH)
+        except:
+            pass
+
         mock_running.side_effect = fake_running
         mock_id.side_effect = fake_id
         mock_republish.side_effect = self.do_nothing
+
         # start new job
         response = self.app.get('/republish/everything')
         self.assertEqual(response.status, '200 OK')
@@ -330,6 +337,99 @@ class TestSequenceFunctions(unittest.TestCase):
         response = self.app.get('/republish/everything')
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("Republish job already in progress", response.data.decode("utf-8"))
+
+    @mock.patch('application.server.get_last_system_of_record_id')
+    @mock.patch('application.server.check_job_running')
+    @mock.patch('application.server.republish_title_instance.republish_all_titles')
+    def test_republish_everything_route_pause_resume(self, mock_republish, mock_running, mock_id):
+
+        def fake_id():
+            return 1
+        def fake_running():
+            return 'running'
+
+        #erase a job file if it exists
+        try:
+            #time.sleep(1)
+            os.remove(self.PATH)
+        except:
+            pass
+
+        mock_running.side_effect = fake_running
+        mock_id.side_effect = fake_id
+        mock_republish.side_effect = self.do_nothing
+
+        # start new job
+        response = self.app.get('/republish/everything')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
+
+        # pause the job
+        response = self.app.get('/republish/pause')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("paused republishing from System of Record and will re-start on the resume command", response.data.decode("utf-8"))
+
+        # resume the job
+        self.app.get('/republish/resume')
+
+    @mock.patch('application.server.get_last_system_of_record_id')
+    @mock.patch('application.server.republish_title_instance.republish_all_titles')
+    @mock.patch('application.server.get_first_id_for_date_time')
+    def test_republish_everything_route_with_from_param(self, mock_first_id, mock_republish, mock_last_id):
+        #erase a job file if it exists
+        try:
+            os.remove(self.PATH)
+        except:
+            pass
+
+        mock_last_id.return_value = 56
+        mock_first_id.return_value = 23
+
+        response = self.app.get('/republish/everything/dummy_date')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
+
+        with open(self.PATH, "r") as read_progress_file:
+            progress_data = json.load(read_progress_file)
+            read_progress_file.close()
+
+        self.assertEqual(progress_data['current_id'], 23)
+        self.assertEqual(progress_data['last_id'], 56)
+
+
+    @mock.patch('application.server.republish_title_instance.republish_all_titles')
+    @mock.patch('application.server.get_first_id_for_date_time')
+    @mock.patch('application.server.get_last_id_for_date_time')
+    def test_republish_everything_route_with_from_and_to_param(self, mock_last_id, mock_first_id, mock_republish):
+        #erase a job file if it exists
+        try:
+            os.remove(self.PATH)
+        except:
+            pass
+
+        mock_last_id.return_value = 456789
+        mock_first_id.return_value = 369
+
+        with LogCapture() as l:
+            response = self.app.get('/republish/everything/from_date/to_date')
+            self.assertEqual(response.status, '200 OK')
+            self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
+            mock_first_id.assert_called_once_with('from_date')
+            mock_last_id.assert_called_once_with('to_date')
+        l.check(
+            ('application', 'AUDIT', 'Request to republish everything from from_date'),
+            ('application', 'AUDIT', 'Request to republish everything up to to_date'),
+            ('application', 'AUDIT',
+             'New republish everything job submitted. Client ip address is: None. Signed in as: %s. Title number is: all titles. Logged at: system-of-record/logs/debug.log. '
+                % linux_user())
+        )
+
+        with open(self.PATH, "r") as read_progress_file:
+            progress_data = json.load(read_progress_file)
+            read_progress_file.close()
+
+        self.assertEqual(progress_data['current_id'], 369)
+        self.assertEqual(progress_data['last_id'], 456789)
 
 
     def test_log_republish_error(self):
@@ -346,47 +446,86 @@ class TestSequenceFunctions(unittest.TestCase):
             self.fail("myFunc() raised ExceptionType unexpectedly!")
 
 
-    # mantra: "Mock an item where it is used, not where it came from."
-    @mock.patch('application.server.republish_title_instance.process_republish_all_titles_file')
-    def test_check_for_republish_all_titles_file(self, mock_repub):
-        with LogCapture() as l:
-            self.write_file()
-            mock_repub.side_effect = self.do_nothing
-            republish_title_instance.check_for_republish_all_titles_file(app, db)
-        l.check(
-            ('application', 'AUDIT', 'Republish everything: processing a request to republish all titles. '),
-            ('application', 'AUDIT', 'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
-        )
-
-
     @mock.patch('application.app.logger.audit')
     def test_remove_republish_all_titles_file(self, mock_audit):
-        self.write_file()  # creates the test file.
+        self.write_one_row_file()  # creates the test file.
         republish_title_instance.remove_republish_all_titles_file(app)
         mock_audit.assert_called_once_with(
             'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
         self.assertFalse(os.path.isfile(self.PATH))
 
 
+    # mantra: "Mock an item where it is used, not where it came from."
     @mock.patch('application.server.publish_json_to_queue')
-    @mock.patch('application.server.republish_title_instance.update_progress')
-    @mock.patch('application.models.SignedTitles')
-    @mock.patch('application.db.session.query')
+    @mock.patch('application.server.republish_title_instance.query_sor_100_at_a_time')
+    def test_check_for_republish_all_titles_file_six_of_six_rows(self, mock_query, mock_republish):
 
-    def test_process_republish_all_titles_file(self, mock_query, mock_model, mock_log_progress, mock_republish):
+        def six_signed_titles_response(*args):
+            return [
+                FakeSignedTitles(1, {'sig': 'some_signed_data', 'data': {'title_number': 'DN1'}}),
+                FakeSignedTitles(2, {'sig': 'some_signed_data', 'data': {'title_number': 'DN2'}}),
+                FakeSignedTitles(3, {'sig': 'some_signed_data', 'data': {'title_number': 'DN3'}}),
+                FakeSignedTitles(4, {'sig': 'some_signed_data', 'data': {'title_number': 'DN4'}}),
+                FakeSignedTitles(5, {'sig': 'some_signed_data', 'data': {'title_number': 'DN5'}}),
+                FakeSignedTitles(6, {'sig': 'some_signed_data', 'data': {'title_number': 'DN6'}})
+            ]
+
+        mock_query.side_effect = six_signed_titles_response
         #Tests the file and data handling.  SQLAlchemy and publishing mocked.
         try:
-            self.write_file()
-            republish_title_instance.process_republish_all_titles_file(app, db)
+            with LogCapture() as l:
+                # Write a job file to process six rows
+                new_job_data = {"current_id": 0, "last_id": 6, "count": 0}
+                with open(self.PATH, 'w') as f:
+                    json.dump(new_job_data, f, ensure_ascii=False)
+
+                republish_title_instance.check_for_republish_all_titles_file(app, db)
+            l.check(
+                ('application', 'AUDIT', 'Republish everything: processing a request to republish all titles from row ids 0 to 6.'),
+                ('application', 'AUDIT', 'Republish everything: Row IDs up to 6 checked. 6 titles sent for republishing.')
+            )
         except Exception as err:
             app.logger.error(str(err))
             self.fail("Test raised ExceptionType unexpectedly!")
 
 
+    @mock.patch('application.server.publish_json_to_queue')
+    @mock.patch('application.server.republish_title_instance.query_sor_100_at_a_time')
+    def test_check_for_republish_all_titles_file_three_of_six_rows(self, mock_query, mock_republish):
+
+        def five_signed_titles_response(*args):  # Only 3 of these 5 should be republished
+            return [
+                FakeSignedTitles(2, {'sig': 'some_signed_data', 'data': {'title_number': 'DN2'}}),
+                FakeSignedTitles(3, {'sig': 'some_signed_data', 'data': {'title_number': 'DN3'}}),
+                FakeSignedTitles(4, {'sig': 'some_signed_data', 'data': {'title_number': 'DN4'}}),
+                FakeSignedTitles(5, {'sig': 'some_signed_data', 'data': {'title_number': 'DN5'}}),
+                FakeSignedTitles(6, {'sig': 'some_signed_data', 'data': {'title_number': 'DN6'}})
+            ]
+
+        mock_query.side_effect = five_signed_titles_response
+        #Tests the file and data handling.  SQLAlchemy and publishing mocked.
+        try:
+            with LogCapture() as l:
+                # write a job file to process three rows.
+                new_job_data = {"current_id": 2, "last_id": 4, "count": 0}
+                with open(self.PATH, 'w') as f:
+                    json.dump(new_job_data, f, ensure_ascii=False)
+
+                republish_title_instance.check_for_republish_all_titles_file(app, db)
+            l.check(
+                ('application', 'AUDIT', 'Republish everything: processing a request to republish all titles from row ids 2 to 4.'),
+                ('application', 'AUDIT', 'Republish everything: Row IDs up to 4 checked. 3 titles sent for republishing.')
+            )
+        except Exception as err:
+            app.logger.error(str(err))
+            self.fail("Test raised ExceptionType unexpectedly!")
+
+
+
     def test_update_progress(self):
         try:
             # Write test file
-            self.write_file()
+            self.write_one_row_file()
 
             # Test the function that updates the file
             republish_title_instance.update_progress(app,{"current_id": 123, "last_id": 999, "count": 56})
@@ -417,7 +556,7 @@ class TestSequenceFunctions(unittest.TestCase):
                 # raise an error, rather than log an exception so we can test for it.
                 mock_log_error.side_effect = self.create_exception
                 # Write test file
-                self.write_file()
+                self.write_one_row_file()
 
                 # Test that the mocked exception is raised.
                 self.assertRaises(TestException, republish_title_instance.update_progress, app,{"current_id": 456})
@@ -429,11 +568,127 @@ class TestSequenceFunctions(unittest.TestCase):
 
 
 
-    def write_file(self):
+    def write_one_row_file(self):
         new_job_data = {"current_id": 0, "last_id": 1, "count": 0}
         with open(self.PATH, 'w') as f:
             json.dump(new_job_data, f, ensure_ascii=False)
 
+    @mock.patch('application.server.get_last_system_of_record_id')
+    @mock.patch('application.server.check_job_running')
+    @mock.patch('application.server.republish_title_instance.republish_all_titles')
+    @mock.patch('application.server.pause_republish')
+    def test_republish_everything_route_with_paused_job(self, mock_pause_republish, mock_republish, mock_running, mock_id):
+
+        def fake_id():
+            return 1
+        def fake_running():
+            return 'running'
+
+        #erase a job file if it exists
+        try:
+            os.remove(self.PATH)
+        except:
+            pass
+
+        mock_running.side_effect = fake_running
+        mock_id.side_effect = fake_id
+        mock_republish.side_effect = self.do_nothing
+
+        # pause the job
+        mock_pause_republish.side_effect = 'paused republishing from System of Record and will re-start on the resume command'
+        response = self.app.get('/republish/pause')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("paused republishing from System of Record and will re-start on the resume command", response.data.decode("utf-8"))
+
+        # resume job
+        self.app.get('/republish/resume')
 
 
+    @mock.patch('application.server.republish_title_instance.set_republish_flag')
+    def test_abort_republish(self, mock_set_republish_flag):
+        mock_set_republish_flag.side_effect = 'abort'
+        response = self.app.get('/republish/abort')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("aborted republishing from System of Record", response.data.decode("utf-8"))
+
+    @mock.patch('application.server.republish_title_instance.get_republish_instance_variable')
+    def test_republish_progress_no_job(self, mock_republish_instance):
+        mock_republish_instance.return_value = {"republish_current_id": 3, "republish_max_id": 100, "total_records_published": 3}
+        response = self.app.get('/republish/progress')
+        self.assertEqual(response.status, '200 OK')
+        response_dict = json.loads(response.data.decode("utf-8"))
+        self.assertEquals("false", response_dict["republish_started"])
+        self.assertEquals(3, response_dict["republish_current_id"])
+        self.assertEquals(100, response_dict["republish_max_id"])
+        self.assertEquals(3, response_dict["total_records_published"])
+
+    @mock.patch('application.server.get_last_system_of_record_id')
+    @mock.patch('application.server.republish_title_instance.get_republish_instance_variable')
+    def test_republish_progress_job_running(self, mock_republish_instance, mock_id):
+        #erase a job file if it exists
+        republish_title_instance.remove_republish_all_titles_file(app)
+
+        def fake_id():
+            return 1
+        mock_id.side_effect = fake_id
+
+        # start new job
+        response = self.app.get('/republish/everything')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
+
+        mock_republish_instance.return_value = {"republish_current_id": 3, "republish_max_id": 100, "total_records_published": 3}
+        response = self.app.get('/republish/progress')
+        self.assertEqual(response.status, '200 OK')
+        response_dict = json.loads(response.data.decode("utf-8"))
+        self.assertEquals("true", response_dict["republish_started"])
+        self.assertEquals(3, response_dict["republish_current_id"])
+        self.assertEquals(100, response_dict["republish_max_id"])
+        self.assertEquals(3, response_dict["total_records_published"])
+
+        republish_title_instance.remove_republish_all_titles_file(app)
+
+    @mock.patch('application.server.republish_title_instance.republish_all_in_progress')
+    def test_check_job_running(self, mock_republish_all_in_progress):
+        mock_republish_all_in_progress.return_value = True
+        response = self.app.get('/republish/everything/status')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("running", response.data.decode("utf-8"))
+
+    @mock.patch('application.server.get_last_system_of_record_id')
+    @mock.patch('application.server.republish_title_instance.republish_all_titles')
+    @mock.patch('application.server.check_job_running')
+    def test_republish_everything_unknown_status(self, mock_running, mock_republish_all_titles, mock_id):
+
+        #erase a job file if it exists
+        try:
+            #time.sleep(1)
+            os.remove(self.PATH)
+        except:
+            pass
+
+        def fake_id():
+            return 1
+        mock_id.side_effect = fake_id
+        mock_republish_all_titles.side_effect = self.do_nothing
+
+        # start new job
+        response = self.app.get('/republish/everything')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
+
+        # pause the job
+        response = self.app.get('/republish/pause')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("paused republishing from System of Record and will re-start on the resume command", response.data.decode("utf-8"))
+
+        mock_running.return_value = ''
+
+        # attempt to start job
+        response = self.app.get('/republish/everything')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals("Unknown job status.", response.data.decode("utf-8"))
+
+        # resume original job
+        self.app.get('/republish/resume')
 
