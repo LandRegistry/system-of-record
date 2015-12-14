@@ -245,15 +245,23 @@ def republish_everything_without_params():
     republish_title_instance.set_republish_flag(None)
     return republish_everything(None, None)  # No date_from and date_to specified
 
-@app.route("/republish/everything/<date_time_from>")
+@app.route("/republish/everything/from/<date_time_from>")
 def republish_everything_with_from_param(date_time_from):
     return republish_everything(date_time_from, None)
 
-@app.route("/republish/everything/<date_time_from>/<date_time_to>")
+@app.route("/republish/everything/to/<date_time_to>")
+def republish_everything_with_to_param(date_time_to):
+    return republish_everything(None, date_time_to)
+
+@app.route("/republish/everything/between/<date_time_from>/<date_time_to>")
 def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
     return republish_everything(date_time_from, date_time_to)
 
 def republish_everything(date_time_from, date_time_to):
+    import logging
+    logging.basicConfig()
+    logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+
     # check that a republish job is not already underway.
     if os.path.isfile(PATH):
         if check_job_running() == 'running':
@@ -274,12 +282,12 @@ def republish_everything(date_time_from, date_time_to):
             from_id = 0
         else:
             from_id = get_first_id_for_date_time(date_time_from)
-            app.logger.audit('Request to republish everything from %s' % date_time_from)
+            app.logger.audit('Request to republish everything from {0} (id = {1})'.format(date_time_from, from_id))
         if date_time_to is None:
             to_id = get_last_system_of_record_id()
         else:
             to_id = get_last_id_for_date_time(date_time_to)
-            app.logger.audit('Request to republish everything up to %s' % date_time_to)
+            app.logger.audit('Request to republish everything up to {0} (id = {1})'.format(date_time_to, to_id))
 
         # Create a new job file
         new_job_data = {"current_id": from_id, "last_id": to_id, "count": 0}
@@ -295,7 +303,7 @@ def republish_everything(date_time_from, date_time_to):
 def get_first_id_for_date_time(date_time_from):
     # Date required in format of "2015-11-11T13:42:50.840623", Time separator T is removed with REGEX.
     date_time_from = re.sub('[T]', ' ', date_time_from)
-    signed_titles_instance = db.session.query(SignedTitles).filter(SignedTitles.created_date >= date_time_from).first()
+    signed_titles_instance = db.session.query(SignedTitles).filter(SignedTitles.created_date >= date_time_from).order_by(SignedTitles.created_date.asc()).first()
     return signed_titles_instance.id
 
 
@@ -367,10 +375,10 @@ def republish_progress():
     return progress
 
 def progress_republish():
+    app.logger.audit(make_log_msg('Republish progress requested', request, 'debug', 'n/a'))
     republish_counts = republish_title_instance.get_republish_instance_variable(db)
     if os.path.exists(PATH):
         republish_counts['republish_started'] = True
     else:
         republish_counts['republish_started'] = False
-    display = json.dumps(republish_counts)
-    return (display)
+    return json.dumps(republish_counts)
