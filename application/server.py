@@ -258,10 +258,6 @@ def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
     return republish_everything(date_time_from, date_time_to)
 
 def republish_everything(date_time_from, date_time_to):
-    import logging
-    logging.basicConfig()
-    logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
-
     # check that a republish job is not already underway.
     if os.path.isfile(PATH):
         if check_job_running() == 'running':
@@ -375,10 +371,7 @@ def republish_progress():
     return progress
 
 def progress_republish():
-    app.logger.audit(make_log_msg('Republish progress requested', request, 'debug', 'n/a'))
-    republish_counts = republish_title_instance.get_republish_instance_variable(db)
-    if os.path.exists(PATH):
-        republish_counts['republish_started'] = True
-    else:
-        republish_counts['republish_started'] = False
+    republish_counts = republish_title_instance.get_republish_instance_variables(db)
+    republish_counts['republish_started'] = republish_title_instance.republish_current_id > 0
+
     return json.dumps(republish_counts)
