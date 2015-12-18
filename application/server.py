@@ -372,6 +372,6 @@ def republish_progress():
 
 def progress_republish():
     republish_counts = republish_title_instance.get_republish_instance_variables(db)
-    republish_counts['republish_started'] = republish_title_instance.republish_current_id > 0
+    republish_counts['republish_started'] = republish_counts['republish_current_id'] > 0
 
     return json.dumps(republish_counts)

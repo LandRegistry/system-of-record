@@ -33,7 +33,7 @@ class TestSequenceFunctions(unittest.TestCase):
         self.app = server.app.test_client()
 
     def tearDown(self):
-        republish_title_instance.remove_republish_all_titles_file(app)
+        republish_title_instance.remove_republish_all_titles_file(app, db)
 
     def add_mocks(function):
         @mock.patch('application.server.db.session.add')
@@ -287,7 +287,7 @@ class TestSequenceFunctions(unittest.TestCase):
     @mock.patch('application.server.republish_title_instance.republish_all_titles')
     def test_republish_everything_route(self, mock_republish, mock_id):
         #erase a job file if it exists
-        republish_title_instance.remove_republish_all_titles_file(app)
+        republish_title_instance.remove_republish_all_titles_file(app, db)
 
         def fake_id():
             return 1
@@ -304,7 +304,7 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("Resumed republish job.", response.data.decode("utf-8"))
 
-        republish_title_instance.remove_republish_all_titles_file(app)
+        republish_title_instance.remove_republish_all_titles_file(app, db)
 
 
     @mock.patch('application.server.get_last_system_of_record_id')
@@ -385,7 +385,7 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_last_id.return_value = 56
         mock_first_id.return_value = 23
 
-        response = self.app.get('/republish/everything/dummy_date')
+        response = self.app.get('/republish/everything/from/dummy_date')
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
 
@@ -411,14 +411,14 @@ class TestSequenceFunctions(unittest.TestCase):
         mock_first_id.return_value = 369
 
         with LogCapture() as l:
-            response = self.app.get('/republish/everything/from_date/to_date')
+            response = self.app.get('/republish/everything/between/from_date/to_date')
             self.assertEqual(response.status, '200 OK')
             self.assertEquals("New republish job submitted", response.data.decode("utf-8"))
             mock_first_id.assert_called_once_with('from_date')
             mock_last_id.assert_called_once_with('to_date')
         l.check(
-            ('application', 'AUDIT', 'Request to republish everything from from_date'),
-            ('application', 'AUDIT', 'Request to republish everything up to to_date'),
+            ('application', 'AUDIT', 'Request to republish everything from from_date (id = 369)'),
+            ('application', 'AUDIT', 'Request to republish everything up to to_date (id = 456789)'),
             ('application', 'AUDIT',
              'New republish everything job submitted. Client ip address is: None. Signed in as: %s. Title number is: all titles. Logged at: system-of-record/logs/debug.log. '
                 % linux_user())
@@ -449,16 +449,18 @@ class TestSequenceFunctions(unittest.TestCase):
     @mock.patch('application.app.logger.audit')
     def test_remove_republish_all_titles_file(self, mock_audit):
         self.write_one_row_file()  # creates the test file.
-        republish_title_instance.remove_republish_all_titles_file(app)
+        republish_title_instance.remove_republish_all_titles_file(app, db)
         mock_audit.assert_called_once_with(
             'Republish everything: Row IDs up to 1 checked. 0 titles sent for republishing.')
         self.assertFalse(os.path.isfile(self.PATH))
 
 
     # mantra: "Mock an item where it is used, not where it came from."
+    @mock.patch('application.server.republish_title_instance.query_republish_count')
+    @mock.patch('application.server.republish_title_instance.query_total_sor_titles')
     @mock.patch('application.server.publish_json_to_queue')
     @mock.patch('application.server.republish_title_instance.query_sor_100_at_a_time')
-    def test_check_for_republish_all_titles_file_six_of_six_rows(self, mock_query, mock_republish):
+    def test_check_for_republish_all_titles_file_six_of_six_rows(self, mock_query, mock_republish, mock_total_sor, mock_republish_count):
 
         def six_signed_titles_response(*args):
             return [
@@ -471,6 +473,9 @@ class TestSequenceFunctions(unittest.TestCase):
             ]
 
         mock_query.side_effect = six_signed_titles_response
+        mock_total_sor.return_value = 4
+        mock_republish_count.return_value = 4
+
         #Tests the file and data handling.  SQLAlchemy and publishing mocked.
         try:
             with LogCapture() as l:
@@ -488,10 +493,11 @@ class TestSequenceFunctions(unittest.TestCase):
             app.logger.error(str(err))
             self.fail("Test raised ExceptionType unexpectedly!")
 
-
     @mock.patch('application.server.publish_json_to_queue')
+    @mock.patch('application.server.republish_title_instance.query_republish_count')
+    @mock.patch('application.server.republish_title_instance.query_total_sor_titles')
     @mock.patch('application.server.republish_title_instance.query_sor_100_at_a_time')
-    def test_check_for_republish_all_titles_file_three_of_six_rows(self, mock_query, mock_republish):
+    def test_check_for_republish_all_titles_file_three_of_six_rows(self, mock_query, mock_sor_total, mock_count, mock_republish):
 
         def five_signed_titles_response(*args):  # Only 3 of these 5 should be republished
             return [
@@ -503,6 +509,8 @@ class TestSequenceFunctions(unittest.TestCase):
             ]
 
         mock_query.side_effect = five_signed_titles_response
+        mock_sor_total.return_value = 4
+        mock_count.return_value = 2
         #Tests the file and data handling.  SQLAlchemy and publishing mocked.
         try:
             with LogCapture() as l:
@@ -521,7 +529,6 @@ class TestSequenceFunctions(unittest.TestCase):
             self.fail("Test raised ExceptionType unexpectedly!")
 
 
-
     def test_update_progress(self):
         try:
             # Write test file
@@ -534,7 +541,7 @@ class TestSequenceFunctions(unittest.TestCase):
                 progress_data = json.load(read_progress_file)
             read_progress_file.close()
 
-            republish_title_instance.remove_republish_all_titles_file(app)
+            republish_title_instance.remove_republish_all_titles_file(app, db)
 
             self.assertEqual(progress_data['current_id'], 123)
             self.assertEqual(progress_data['last_id'], 999)
@@ -611,22 +618,22 @@ class TestSequenceFunctions(unittest.TestCase):
         self.assertEqual(response.status, '200 OK')
         self.assertEquals("aborted republishing from System of Record", response.data.decode("utf-8"))
 
-    @mock.patch('application.server.republish_title_instance.get_republish_instance_variable')
+    @mock.patch('application.server.republish_title_instance.get_republish_instance_variables')
     def test_republish_progress_no_job(self, mock_republish_instance):
-        mock_republish_instance.return_value = {"republish_current_id": 3, "republish_max_id": 100, "total_records_published": 3}
+        mock_republish_instance.return_value = {"republish_current_id": 0, "republish_max_id": 100, "total_records_published": 3}
         response = self.app.get('/republish/progress')
         self.assertEqual(response.status, '200 OK')
         response_dict = json.loads(response.data.decode("utf-8"))
-        self.assertEquals("false", response_dict["republish_started"])
-        self.assertEquals(3, response_dict["republish_current_id"])
+        self.assertEquals(False, response_dict["republish_started"])
+        self.assertEquals(0, response_dict["republish_current_id"])
         self.assertEquals(100, response_dict["republish_max_id"])
         self.assertEquals(3, response_dict["total_records_published"])
 
     @mock.patch('application.server.get_last_system_of_record_id')
-    @mock.patch('application.server.republish_title_instance.get_republish_instance_variable')
+    @mock.patch('application.server.republish_title_instance.get_republish_instance_variables')
     def test_republish_progress_job_running(self, mock_republish_instance, mock_id):
         #erase a job file if it exists
-        republish_title_instance.remove_republish_all_titles_file(app)
+        republish_title_instance.remove_republish_all_titles_file(app, db)
 
         def fake_id():
             return 1
@@ -641,12 +648,12 @@ class TestSequenceFunctions(unittest.TestCase):
         response = self.app.get('/republish/progress')
         self.assertEqual(response.status, '200 OK')
         response_dict = json.loads(response.data.decode("utf-8"))
-        self.assertEquals("true", response_dict["republish_started"])
+        self.assertEquals(True, response_dict["republish_started"])
         self.assertEquals(3, response_dict["republish_current_id"])
         self.assertEquals(100, response_dict["republish_max_id"])
         self.assertEquals(3, response_dict["total_records_published"])
 
-        republish_title_instance.remove_republish_all_titles_file(app)
+        republish_title_instance.remove_republish_all_titles_file(app, db)
 
     @mock.patch('application.server.republish_title_instance.republish_all_in_progress')
     def test_check_job_running(self, mock_republish_all_in_progress):

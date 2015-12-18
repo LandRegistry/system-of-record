@@ -107,6 +107,8 @@ class RepublishTitles:
 
         #reset progress data
         self.set_republish_instance_variables( 0, 0, 0, self.query_total_sor_titles(db))
+        self.set_republish_instance_variables( 0, 0, 0, 0)
+        self.set_republish_instance_variables( 0, 0, 0, 4)
 
         # Update the progress file upon completion
         self.update_progress(app, progress_data)
