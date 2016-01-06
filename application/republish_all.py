@@ -1,5 +1,6 @@
 #!/usr/bin/python
-
+from __future__ import print_function
+import sys
 import threading
 import time
 import os
@@ -32,11 +33,14 @@ class RepublishTitles:
     def get_republish_instance_variables(self, db):
         return {"republish_current_id": self.republish_current_id,
                 "republish_max_id": self.republish_last_id,
-                "total_records_published": self.republish_count ,
-                "total_records": self.query_total_sor_titles(db) if self.total_records == 0 else self.total_records}
+                "total_records_published": self.republish_count,
+                "total_records": self.query_total_sor_titles(db)}
 
     def set_republish_flag(self,value):
         self.republish_flag = value
+
+    def get_republish_flag(self):
+        return self.republish_flag
 
     def republish_all_in_progress(self):
         if self.republish_thread is not None:
@@ -70,6 +74,7 @@ class RepublishTitles:
         return db.session.query(SignedTitles).filter(SignedTitles.id >=firstid).filter(SignedTitles.id <= lastid).count()
 
     def process_republish_all_titles_file(self, app, db):
+        sys.stdout.write('process_republish_all_title_file')
         from .server import publish_json_to_queue
         with open(PATH, "r") as read_progress_file:
             progress_data = json.load(read_progress_file)
@@ -85,8 +90,15 @@ class RepublishTitles:
             if row:
                 try:
                     progress_data['current_id'] = row.id
-                    if row.id > progress_data['last_id'] or self.republish_flag is not None:
+
+                    #if id greater than the last id we are finished. Set flag and carry on
+                    if row.id > progress_data['last_id']:
+                        self.set_republish_flag(None)
                         break
+
+                    #check to see if we have an abort stop message and stop everything if we do
+                    if self.republish_flag is not None:
+                        return
 
                     publish_json_to_queue(row.record, row.record['data']['title_number'])
                     progress_data['count'] += 1
@@ -94,9 +106,7 @@ class RepublishTitles:
                     self.set_republish_instance_variables( progress_data['current_id'], progress_data['last_id'], progress_data['count'], total_to_republish)
 
                 except Exception as err:
-                    self.log_republish_error(
-                        'Could not republish for row id %s owing to following error %s. ' % (
-                            progress_data['current_id'], str(err)), app)
+                    self.log_republish_error('Could not republish for row id %s owing to following error %s. ' % ( progress_data['current_id'], str(err)), app)
                     # Update the progress file upon error
                     self.update_progress(app, progress_data)
 
@@ -104,14 +114,17 @@ class RepublishTitles:
             if progress_data['current_id'] % 1000 == 0:
                 self.update_progress(app, progress_data)
 
-
         #reset progress data
-        self.set_republish_instance_variables( 0, 0, 0, self.query_total_sor_titles(db))
-        self.set_republish_instance_variables( 0, 0, 0, 0)
-        self.set_republish_instance_variables( 0, 0, 0, 4)
+        self.log_republish_error('XXXXXXXXXXX - reset variables', app)
+        self.reset_instance_variables(db)
+        #self.set_republish_instance_variables( 0, 0, 0, self.query_total_sor_titles(db))
 
         # Update the progress file upon completion
         self.update_progress(app, progress_data)
+
+
+    def reset_instance_variables(self, db):
+        self.set_republish_instance_variables( 0, 0, 0, self.query_total_sor_titles(db))
 
 
     def update_progress(self, app, progress_data):

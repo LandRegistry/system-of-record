@@ -12,7 +12,6 @@ import os
 import os.path
 import json
 
-
 PATH='./republish_progress.json'
 
 @app.route("/")
@@ -225,16 +224,13 @@ def republish_all_versions_of_title(republish_json):
         if row_count == 0:
             raise NoRowFoundException('title_number %s not found in database .' % republish_json['title_number'])
 
-        app.logger.audit(
-            make_log_msg(
-                'Republishing all versions of title to %s queue at %s. ' % (app.config['RABBIT_QUEUE'], rabbit_endpoint()),
+        app.logger.audit( make_log_msg( 'Republishing all versions of title to %s queue at %s. ' % (app.config['RABBIT_QUEUE'], rabbit_endpoint()),
                 request, 'debug', republish_json['title_number']))
 
         return 'republish_all_versions_of_title successful'  # for testing
 
     except Exception as err:
-            error_message = 'Error republishing title %s. ' % (
-                republish_json['title_number'])
+            error_message = 'Error republishing title %s. ' % (republish_json['title_number'])
             app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
             app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
             raise  # re-raise error for counting errors.
@@ -326,43 +322,32 @@ def get_last_system_of_record_id():
 def execute_query(sql):
     return db.engine.execute(sql)
 
-
 class NoRowFoundException(Exception):
     pass
 
 @app.route("/republish/pause")
 def pause_republish():
     republish_title_instance.set_republish_flag('pause')
-    app.logger.audit(
-        make_log_msg(
-            'Republishing has been paused. ',
-            request, 'debug', 'n/a'))
+    app.logger.audit(make_log_msg('Republishing has been paused. ', request, 'debug', 'n/a'))
     return 'paused republishing from System of Record and will re-start on the resume command'
 
 @app.route("/republish/abort")
 def abort_republish():
     republish_title_instance.set_republish_flag('abort')
-    app.logger.audit(
-        make_log_msg(
-            'Republishing has been aborted. ',
-            request, 'debug', 'n/a'))
+    republish_title_instance.reset_instance_variables()
+    app.logger.audit( make_log_msg( 'Republishing has been aborted. ',  request, 'debug', 'n/a'))
     return 'aborted republishing from System of Record'
 
 @app.route("/republish/resume")
 def resume_republish():
     if os.path.isfile(PATH):
         republish_title_instance.set_republish_flag(None)
-        republish_everything_without_params()
-        app.logger.audit(
-            make_log_msg(
-                'Republishing has been resumed. ',
-                request, 'debug', 'n/a'))
+        republish_title_instance.process_republish_all_titles_file
+        #republish_everything_without_params()
+        app.logger.audit( make_log_msg( 'Republishing has been resumed. ', request, 'debug', 'n/a'))
         return 'republishing has been resumed'
     else:
-        app.logger.audit(
-            make_log_msg(
-                'Republishing is not in progress, unable to resume. ',
-                request, 'debug', 'n/a'))
+        app.logger.audit( make_log_msg( 'Republishing is not in progress, unable to resume. ', request, 'debug', 'n/a'))
         return 'Republishing cannot resume as no job in progress'
 
 @app.route("/republish/progress")
@@ -372,6 +357,7 @@ def republish_progress():
 
 def progress_republish():
     republish_counts = republish_title_instance.get_republish_instance_variables(db)
-    republish_counts['republish_started'] = republish_counts['republish_current_id'] > 0
+    app.logger.audit( republish_title_instance.get_republish_flag() )
+    republish_counts['republish_started'] = republish_title_instance.get_republish_flag() is None and republish_counts['republish_current_id'] > 0
 
     return json.dumps(republish_counts)
