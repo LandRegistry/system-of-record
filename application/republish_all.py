@@ -5,6 +5,8 @@ import time
 import os
 import os.path
 import json
+import socket
+from multiprocessing import Process
 
 PATH = './republish_progress.json'
 
@@ -34,10 +36,14 @@ class RepublishTitles:
         self.republish_flag = value
 
     def republish_all_in_progress(self):
-        if self.republish_thread is not None:
-            return self.republish_thread.isAlive()
-        else:
+        socket_check = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            socket_check.bind("\0republish-socket")
+            socket_check.close
             return False
+        except socket.error:
+            return True
+
 
     def republish_all_titles(self, app, db):
         # Thread to check the file for job progress and act accordingly.
@@ -47,10 +53,13 @@ class RepublishTitles:
 
 
     def check_for_republish_all_titles_file(self, app, db):
+        republish_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        republish_socket.bind("\0republish-socket")
         republish_all_titles_file_exists = os.path.isfile(PATH)
         if republish_all_titles_file_exists:
             self.process_republish_all_titles_file(app, db)
             self.remove_republish_all_titles_file(app)
+        republish_socket.close
 
 
     def query_sor_100_at_a_time(self, db, progress_data):
