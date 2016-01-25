@@ -6,7 +6,6 @@ import os
 import os.path
 import json
 import socket
-from multiprocessing import Process
 
 PATH = './republish_progress.json'
 
