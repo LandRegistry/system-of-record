@@ -139,9 +139,9 @@ class RepublishTitles:
                          else:
                              app.logger.audit('Republish everything: Job Aborted. %s titles sent for republishing.' % (
                                  progess_data['count']))
+                             self.set_republish_instance_variables(0,0,0)
+                             self.set_republish_flag(None)
                          os.remove(PATH)
-                         self.set_republish_instance_variables(0,0,0)
-                         self.set_republish_flag(None)
                     break
                 except Exception as err:
                     time.sleep(1)
