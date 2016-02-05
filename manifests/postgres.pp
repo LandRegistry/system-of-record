@@ -66,3 +66,7 @@ postgresql::server::database_grant { 'grant root access to system of record':
   db        => 'systemofrecord',
   role      => 'root',
 }
+
+class { 'postgresql::lib::devel':
+  package_ensure      => 'present',
+}
