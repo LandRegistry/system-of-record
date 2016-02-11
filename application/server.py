@@ -43,7 +43,7 @@ def insert():
 
     except IntegrityError as err:
         db.session.rollback()
-        error_message = 'Integrity error. Check that title number and application reference are unique. '
+        error_message = 'Integrity error. Check that title number, application reference and geometry application reference are unique. '
         app.logger.error(make_log_msg(error_message, request, 'error', title_number))
         app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
         return error_message, 409
