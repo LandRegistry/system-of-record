@@ -126,14 +126,22 @@ def republish():
             except:
                 error_count += 1
 
-        # get the register by title_number and application_reference
-        elif 'application_reference' in a_title:
+        # get version(s) of the register by title_number and application_reference.
+        # NB. Possible to have versions with same title_number and application_reference, but different geometry_application_reference
+        elif 'application_reference' in a_title and 'geometry_application_reference' not in a_title:
             try:
                 republish_by_title_and_application_reference(a_title, True)
             except:
                 error_count += 1
 
-        #get the latest version of the register for a title number
+        # get specific version of register by title_number, application_reference and geometry_application_reference
+        elif 'application_reference' in a_title and 'geometry_application_reference' in a_title:
+            try:
+                republish_by_title_and_app_and_geo_refs(a_title, True)
+            except:
+                error_count +=1
+
+        # get the latest version of the register for a title number
         else:
             try:
                 republish_latest_version(a_title)
@@ -209,6 +217,37 @@ def republish_by_title_and_application_reference(republish_json, perform_audit):
         app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
         raise # re-raise error for counting errors.
 
+def republish_by_title_and_app_and_geo_refs(republish_json, perform_audit):
+    try:
+        row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
+
+        sql = "select record from records where (record->'data'->>'title_number')::text = '%s' and (record->'data'->>'application_reference')::text = '%s' and (record->'data'->>'geometry_application_reference')::text = '%s';" % (
+            republish_json['title_number'], republish_json['application_reference'], republish_json['geometry_application_reference'])
+        result = execute_query(sql)
+
+        for row in result:
+            row_count += 1
+            publish_json_to_queue((row[0]), republish_json['title_number'])
+
+        if row_count == 0:
+            raise NoRowFoundException('application %s with geometry application reference %s for title number %s not found in database. ' % (
+                republish_json['application_reference'], republish_json['geometry_application_reference'], republish_json['title_number']))
+
+        if perform_audit: # No audit is system performing a full republish.
+            app.logger.audit(
+                make_log_msg(
+                    'Republishing application %s with geometry application reference %s to  %s queue at %s. ' % (
+                        republish_json['application_reference'], republish_json['geometry_application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
+                    request, 'debug', republish_json['title_number']))
+
+        return 'republish_by_title_and_app_and_geo_refs successful'  # for testing
+
+    except Exception as err:
+        error_message = 'Error republishing title %s with application reference %s and geometry application reference %s. ' % (
+            republish_json['title_number'], republish_json['application_reference'], republish_json['geometry_application_reference'])
+        app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
+        app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
+        raise # re-raise error for counting errors.
 
 def republish_all_versions_of_title(republish_json):
     try:
