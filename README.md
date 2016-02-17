@@ -73,18 +73,23 @@ curl -X POST -d '{"sig":"some_signed_data","data":{"title_number": "DN1", "appli
 
 ##How to republish messages for stored titles:
 
-###Replublish latest version of one title:
+###Republish latest version of one title:
 
 ```
 curl -X POST -d '{"titles": [{"title_number":"DN1"}]}' -H "Content-Type: application/json" http://127.0.0.1:5001/republish
 ```
 
-###Replublish a specific version of a title:
+###Republish all versions of a title with the same ABR (NB. Multiple versions are possible where geometry application references differ)
 
 ```
 curl -X POST -d '{"titles": [{"title_number":"DN1", "application_reference": "ABR123"}]}' -H "Content-Type: application/json" http://127.0.0.1:5001/republish
 ```
 
+###Republish specific version of a title 
+
+```
+curl -X POST -d '{"titles": [{"title_number":"DN1", "application_reference": "ABR123", "geometry_application_reference": "GEO123"}]}' -H "Content-Type: application/json" http://127.0.0.1:5001/republish
+```
 ###Republish more than one title in a single message:
 ```
 curl -X POST -d '{"titles": [{"title_number":"DN1", "application_reference": "ABR123"}, {"title_number":"DN2", "application_reference": "ABR1234"}, {"title_number":"DN3", "application_reference": "ABR12345"} ]}' -H "Content-Type: application/json" http://127.0.0.1:5001/republish
@@ -101,10 +106,9 @@ curl http://127.0.0.1:5001/republish/everything
 ```
 
 The republisheverything endpoint creates a 'republish_progress.json' file.  This file is populated with a count value
-and the last id on the target database.  After the file is created, a thread will use the count value to check the system of
- record database for a corresponding row id.  If it finds one it will send json containing the title number and abr
- to the 'register_publisher' queue. When the 'count' value equals the 'last_id' value, the file will be deleted.
- The service's function to republish a title by title number and application reference is used for each row found.
+and the last id on the target database.  After the file is created, a thread iterates through the system of record database 100 rows at a time and writes the json record and title number to the 'register_publisher' queue.  
+When the 'last_id' value is reached, the file will be deleted.
+
  
 
 The threads are spawned in republish_all.py, which is called in the init of the flask app. 
