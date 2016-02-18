@@ -80,7 +80,7 @@ class TestSequenceFunctions(unittest.TestCase):
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/insert', data = CORRECT_TEST_TITLE, headers = headers)
         self.assertEqual(response.status, '409 CONFLICT')
-        self.assertEqual(response.data.decode("utf-8"), 'Integrity error. Check that title number and application reference are unique. ')
+        self.assertEqual(response.data.decode("utf-8"), 'Integrity error. Check that title number, application reference and geometry application reference are unique. ')
 
     @add_mocks
     @mock.patch('application.server.remove_username_password')
@@ -164,23 +164,40 @@ class TestSequenceFunctions(unittest.TestCase):
 
     @mock.patch('application.server.republish_by_title_and_application_reference')
     def test_republish_route_by_title_application(self, mock_title_app):
-        REPUBLISH_SPECIFIC_TITLE_VERSION = '{"titles": [{"title_number":"DN1", "application_reference": "ABR123"}]}'
+        REPUBLISH_TITLE_ABR_VERSIONS = '{"titles": [{"title_number":"DN1", "application_reference": "ABR123"}]}'
         mock_title_app.side_effect = self.do_nothing
         headers = {'content-Type': 'application/json'}
-        response = self.app.post('/republish', data=REPUBLISH_SPECIFIC_TITLE_VERSION, headers=headers)
+        response = self.app.post('/republish', data=REPUBLISH_TITLE_ABR_VERSIONS, headers=headers)
         self.assertEqual(response.status, '200 OK')
         self.assertEquals('No errors.  Number of titles in JSON: 1', response.data.decode("utf-8"))
 
 
     @mock.patch('application.server.republish_by_title_and_application_reference')
     def test_republish_route_by_title_application_with_error(self, mock_title_app):
-        REPUBLISH_SPECIFIC_TITLE_VERSION = '{"titles": [{"title_number":"DN1", "application_reference": "ABR123"}]}'
+        REPUBLISH_TITLE_ABR_VERSIONS = '{"titles": [{"title_number":"DN1", "application_reference": "ABR123"}]}'
+        mock_title_app.side_effect = self.create_exception
+        headers = {'content-Type': 'application/json'}
+        response = self.app.post('/republish', data=REPUBLISH_TITLE_ABR_VERSIONS, headers=headers)
+        self.assertEqual(response.status, '202 ACCEPTED')
+        self.assertEquals('Completed republish.  1 titles in JSON. Number of errors: 1', response.data.decode("utf-8"))
+
+    @mock.patch('application.server.republish_by_title_and_app_and_geo_refs')
+    def test_republish_route_by_title_application_geo_refs(self, mock_title_app_geo):
+        REPUBLISH_SPECIFIC_TITLE_VERSION = '{"titles": [{"title_number":"DN1", "application_reference": "ABR123", "geometry_application_reference": "GEO123"}]}'
+        mock_title_app_geo.side_effect = self.do_nothing
+        headers = {'content-Type': 'application/json'}
+        response = self.app.post('/republish', data=REPUBLISH_SPECIFIC_TITLE_VERSION, headers=headers)
+        self.assertEqual(response.status, '200 OK')
+        self.assertEquals('No errors.  Number of titles in JSON: 1', response.data.decode("utf-8"))
+
+    @mock.patch('application.server.republish_by_title_and_app_and_geo_refs')
+    def test_republish_route_by_title_application_geo_refs_with_error(self, mock_title_app):
+        REPUBLISH_SPECIFIC_TITLE_VERSION = '{"titles": [{"title_number":"DN1", "application_reference": "ABR123", "geometry_application_reference": "ABR123"}]}'
         mock_title_app.side_effect = self.create_exception
         headers = {'content-Type': 'application/json'}
         response = self.app.post('/republish', data=REPUBLISH_SPECIFIC_TITLE_VERSION, headers=headers)
         self.assertEqual(response.status, '202 ACCEPTED')
         self.assertEquals('Completed republish.  1 titles in JSON. Number of errors: 1', response.data.decode("utf-8"))
-
 
     @mock.patch('application.server.republish_latest_version')
     def test_republish_route_for_latest_version(self, mock_latest_version):
