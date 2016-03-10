@@ -7,7 +7,7 @@ class Config(object):
     RABBIT_QUEUE = os.getenv('RABBIT_QUEUE', 'system_of_record')
     RABBIT_ROUTING_KEY = os.getenv('RABBIT_ROUTING_KEY', 'system_of_record')
     LOGGING_PATH = os.getenv('LOGGING_PATH', 'python_logging/logging.yaml')
-    MAX_RENAME_RETRIES = 100
+    REPUBLISH_QUEUE = os.getenv('REPUBLISH_QUEUE', 'republish_queue')
     DEBUG = False
 
 class DevelopmentConfig(Config):

@@ -69,6 +69,13 @@ class Republisher:
             command = data['target']
             if command == 'start':
                 conn.sendall(json.dumps({ "result": self.start_republish(**data['kwargs']) }).encode("utf-8"))
+            elif command == 'sync_start':
+                res = self.start_republish(**data['kwargs'])
+                if res == "Republish started":
+                    for thread in self.consumer_threads:
+                        thread.join()
+                    res = "Republish complete"
+                conn.sendall(json.dumps({ "result": res }).encode("utf-8"))
             elif command == 'stop':
                 conn.sendall(json.dumps({ "result": self.stop_republish() }).encode("utf-8"))
             elif command == 'running':
@@ -103,11 +110,14 @@ class Republisher:
     def reset_republish(self):
         """Stops the current republish and clears the republish input queue"""
         self.stop_republish()
+        for thread in self.consumer_threads:
+            thread.join()
         print('Thread %s: Clearing republish queue...' % (threading.current_thread().ident))
         connection = self.amqp_pool.acquire(block=True, timeout=10)
         input_queue = connection.SimpleQueue(self.republish_queue)
         try:
             input_queue.clear()
+            self.set_progress()
         finally:
             input_queue.close()
             connection.release()
@@ -121,7 +131,7 @@ class Republisher:
                 return True
         return False
         
-    def start_republish(self, title_number=None, application_reference=None, geometry_application_reference=None, start_date=None, end_date=None, newest_only=False, block_size=40):
+    def start_republish(self, title_number=None, application_reference=None, geometry_application_reference=None, start_date=None, end_date=None, newest_only=False, block_size=100):
         """Starts a republish with the supplied requirements"""
         if self.is_running():
             return "Already running"
@@ -138,6 +148,8 @@ class Republisher:
         self.stop_event.clear()
         if self.is_running():
             return "Already running"
+        elif self.queue_count() <= 0:
+            return "Nothing to resume"
         else:
             self.consumer_threads = []
             for _x in range(self.threads):
@@ -190,16 +202,24 @@ class Republisher:
             params['start_date'] = start_date
         if end_date:
             sql = sql + "AND created_date < :end_date "
-            params['end_date'] = start_date
+            params['end_date'] = end_date
         if newest_only:
             sql = sql + "ORDER BY id DESC LIMIT 1 "
-        
         print('Thread %s: Retrieving ID(s) from DB...' % (threading.current_thread().ident))
         try:
-            for row in self.db_session.execute(sql, params):
-                self.send_messages(row['id_start'], row['id_end'], block_size, { 'title_number': title_number, 'application_reference': application_reference,
-                                                                                 'geometry_application_reference': geometry_application_reference, 'start_date': start_date,
-                                                                                 'end_date': end_date, 'newest_only': newest_only })
+            rows = self.db_session.execute(sql, params)
+            print(rows.rowcount)
+            if rows.rowcount < 1:
+                print("No rows for republish criteria")
+                raise Exception("No rows for republish criteria")
+            for row in rows:
+                if row['id_start'] and row['id_end']:
+                    self.send_messages(row['id_start'], row['id_end'], block_size, { 'title_number': title_number, 'application_reference': application_reference,
+                                                                                     'geometry_application_reference': geometry_application_reference, 'start_date': start_date,
+                                                                                     'end_date': end_date, 'newest_only': newest_only })
+                else:
+                    print("No IDs for republish criteria")
+                    raise Exception("No IDs for republish criteria")
         finally:
             self.db_session.remove()
             print('Thread %s: Released connection' % (threading.current_thread().ident))
@@ -269,10 +289,3 @@ class Republisher:
         finally:
             publisher_queue.close()
             connection.release()
-
-    
-'''multiprocessing.Process(target=Republisher().republish_process, args=["postgresql://systemofrecord:systemofrecord@localhost/systemofrecord", 
-                                                                      "amqp://mqpublisher:mqpublisherpassword@localhost:5672//",
-                                                                      "republish_queue",
-                                                                      "system_of_record",
-                                                                      "system_of_record"]).start()'''

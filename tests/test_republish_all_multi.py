@@ -4,28 +4,6 @@ from unittest.mock import patch, Mock, PropertyMock, call
 from application.republish_all_multi import Republisher
 from kombu import Queue
 
-
-'''    def query_sor_publish(self, id_start, id_end):
-        """Query SOR for json for the given id range and publish each to the output queue"""
-        print('Thread %s: Preparing to send messages to output queue...' % (threading.current_thread().ident))
-        connection = self.amqp_pool.acquire(block=True, timeout=10)
-        publisher_queue = connection.SimpleQueue(self.output_queue)
-        try:
-            print("Thread %s: Retrieving and publishing record(s) %s - %s" % (threading.current_thread().ident, id_start, id_end))
-            sql = "SELECT id, (record->'data'->>'title_number')::text as title, record::text as record FROM records WHERE id BETWEEN :id_start AND :id_end ORDER BY id"
-            params = { "id_start": id_start, "id_end": id_end }
-            for row in self.db_session.execute(sql, params):
-                if self.stop_event.is_set():
-                    print('Thread %s: Stopping republishing' % (threading.current_thread().ident))
-                    break
-                publisher_queue.put(row['record'], routing_key=self.output_routing_key, content_type="application/json",
-                                    headers={ 'title_number': row['title'] })
-            print('Thread %s: Records republished' % (threading.current_thread().ident))
-        finally:
-            publisher_queue.close()
-            connection.release()
-'''
-
 class RepublisherTest(unittest.TestCase):
     
     @patch.object(Republisher, "amqp_pool", create=True)
@@ -158,9 +136,10 @@ class RepublisherTest(unittest.TestCase):
     @patch.object(Republisher, 'send_messages')
     def test_populate_queue_ids_title(self, mock_send_messages, mock_stop_event, mock_db_session):
         mock_db_session.execute.return_value.__iter__ = Mock(return_value=iter([{ 'id_start': 14, 'id_end': 14 }, { 'id_start': 10, 'id_end': 10 }]))
+        mock_res = mock_db_session.execute.return_value.rowcount = 1
         Republisher().populate_queue_ids('A_TITLE', 'A_REFERENCE', 'A_GEO_REFERENCE', 'A_START_DATE', 'A_END_DATE', True, 100)
         mock_db_session.execute.assert_called_with("SELECT id as id_start, id as id_end FROM records WHERE 1=1 AND (record->'data'->>'title_number')::text = :title_number AND (record->'data'->>'application_reference')::text = :application_reference AND (record->'data'->>'geometry_application_reference')::text = :geometry_application_reference AND created_date > :start_date AND created_date < :end_date ORDER BY id DESC LIMIT 1 ",
-                                                   {'start_date': 'A_START_DATE', 'application_reference': 'A_REFERENCE', 'end_date': 'A_START_DATE',
+                                                   {'start_date': 'A_START_DATE', 'application_reference': 'A_REFERENCE', 'end_date': 'A_END_DATE',
                                                     'geometry_application_reference': 'A_GEO_REFERENCE', 'title_number': 'A_TITLE'})
         mock_db_session.remove.assert_called_with()
         mock_send_messages.assert_has_calls([ call(14, 14, 100, {'application_reference': 'A_REFERENCE', 'start_date': 'A_START_DATE',
@@ -175,20 +154,46 @@ class RepublisherTest(unittest.TestCase):
     @patch.object(Republisher, 'send_messages')
     def test_populate_queue_ids_range(self, mock_send_messages, mock_stop_event, mock_db_session):
         mock_db_session.execute.return_value.__iter__ = Mock(return_value=iter([{ 'id_start': 14, 'id_end': 200 }]))
+        mock_res = mock_db_session.execute.return_value.rowcount = 1
         Republisher().populate_queue_ids(None, None, None, 'A_START_DATE', 'A_END_DATE', False, 123)
         mock_db_session.execute.assert_called_with('SELECT min(id) as id_start, max(id) as id_end FROM records WHERE 1=1 AND created_date > :start_date AND created_date < :end_date ',
-                                                   {'start_date': 'A_START_DATE', 'end_date': 'A_START_DATE'})
+                                                   {'start_date': 'A_START_DATE', 'end_date': 'A_END_DATE'})
         mock_db_session.remove.assert_called_with()
         mock_send_messages.assert_has_calls([ call(14, 200, 123, {'application_reference': None, 'start_date': 'A_START_DATE',
                                                                  'geometry_application_reference': None, 'title_number': None, 'newest_only': False,
-                                                                 'end_date': 'A_END_DATE'}) ])
+                                                                 'end_date': 'A_END_DATE'}) ])   
+             
+    @patch.object(Republisher, 'db_session', create=True)
+    @patch.object(Republisher, 'stop_event', create=True)
+    @patch.object(Republisher, 'send_messages')
+    def test_populate_queue_ids_noids(self, mock_send_messages, mock_stop_event, mock_db_session):
+        mock_db_session.execute.return_value.__iter__ = Mock(return_value=iter([{ 'id_start': None, 'id_end': None }]))
+        mock_res = mock_db_session.execute.return_value.rowcount = 1
+        with pytest.raises(Exception) as exc:
+            Republisher().populate_queue_ids(None, None, None, 'A_START_DATE', 'A_END_DATE', False, 123)
+        mock_db_session.execute.assert_called_with('SELECT min(id) as id_start, max(id) as id_end FROM records WHERE 1=1 AND created_date > :start_date AND created_date < :end_date ',
+                                                   {'start_date': 'A_START_DATE', 'end_date': 'A_END_DATE'})
+        mock_db_session.remove.assert_called_with()
+ 
+             
+    @patch.object(Republisher, 'db_session', create=True)
+    @patch.object(Republisher, 'stop_event', create=True)
+    def test_populate_queue_ids_none(self, mock_stop_event, mock_db_session):
+        mock_db_session.execute.return_value.__iter__ = Mock(return_value=iter([]))
+        mock_res = mock_db_session.execute.return_value.rowcount = 0
+        with pytest.raises(Exception) as exc:
+            Republisher().populate_queue_ids(None, None, None, 'A_START_DATE', 'A_END_DATE', False, 123)
+        mock_db_session.execute.assert_called_with('SELECT min(id) as id_start, max(id) as id_end FROM records WHERE 1=1 AND created_date > :start_date AND created_date < :end_date ',
+                                                   {'start_date': 'A_START_DATE', 'end_date': 'A_END_DATE'})
+        mock_db_session.remove.assert_called_with()
         
     @patch.object(Republisher, 'stop_event', create=True)
     @patch.object(Republisher, "is_running", return_value=False)
     @patch.object(Republisher, "threads", create=True, new_callable=PropertyMock, return_value=5)
+    @patch.object(Republisher, "queue_count", return_value=1)
     @patch.object(Republisher, "read_messages")
     @patch("application.republish_all_multi.threading.Thread")
-    def test_start_consumers_running(self, mock_thread, mock_read_messages, mock_threads, mock_is_running, mock_stop_event):
+    def test_start_consumers_running(self, mock_thread, mock_read_messages, mock_queue_count, mock_threads, mock_is_running, mock_stop_event):
         assert Republisher().start_consumers() == "Started"
         calls = [ call(target=mock_read_messages) for x in range(5) ]
         calls += [ call().start() for x in range(5) ]
@@ -199,6 +204,13 @@ class RepublisherTest(unittest.TestCase):
     @patch.object(Republisher, "is_running", return_value=True)
     def test_start_consumers_notrunning(self, mock_is_running, mock_stop_event):
         assert Republisher().start_consumers() == "Already running"
+        mock_stop_event.clear.assert_called_with()
+
+    @patch.object(Republisher, 'stop_event', create=True)
+    @patch.object(Republisher, "is_running", return_value=False)
+    @patch.object(Republisher, "queue_count", return_value=0)    
+    def test_start_consumers_nothing(self, mock_queue_count, mock_is_running, mock_stop_event):
+        assert Republisher().start_consumers() == "Nothing to resume"
         mock_stop_event.clear.assert_called_with()
     
     @patch.object(Republisher, "is_running", return_value=False)
@@ -224,7 +236,10 @@ class RepublisherTest(unittest.TestCase):
     @patch.object(Republisher, "republish_queue", create=True, new_callable=PropertyMock, return_value="A_QUEUE")
     @patch.object(Republisher, "stop_republish")
     @patch.object(Republisher, "amqp_pool", create=True)   
-    def test_reset_republish_ok(self, mock_amqp_pool, mock_stop_republish, mock_queue_name):
+    @patch.object(Republisher, 'consumer_threads', create=True)
+    def test_reset_republish_ok(self, mock_consumer_threads, mock_amqp_pool, mock_stop_republish, mock_queue_name):
+        thread = Mock()
+        mock_consumer_threads.__iter__ = Mock(return_value=iter([thread, thread]))
         assert Republisher().reset_republish() == "reset"
         mock_stop_republish.assert_called_with()
         connection = mock_amqp_pool.acquire.return_value
@@ -232,6 +247,7 @@ class RepublisherTest(unittest.TestCase):
         queue = connection.SimpleQueue.return_value
         queue.clear.assert_called_with()
         queue.close.assert_called_with()
+        thread.join.assert_has_calls([call(), call()])
     
     @patch.object(Republisher, "start_republish", return_value="START_RESULT")
     def test_handle_connection_start(self, mock_method):
@@ -239,6 +255,17 @@ class RepublisherTest(unittest.TestCase):
         mock_conn.recv.return_value =  b'{ "target": "start", "kwargs": { "arg1": "value1", "arg2": "value2" } }'
         Republisher().handle_connection(mock_conn, Mock())
         mock_conn.sendall.assert_called_with(b'{"result": "START_RESULT"}')
+        
+    @patch.object(Republisher, "start_republish", return_value="Republish started")
+    @patch.object(Republisher, "consumer_threads", create=True)   
+    def test_handle_connection_sync_start(self, mock_consumer_threads, mock_method):
+        thread = Mock()
+        mock_consumer_threads.__iter__ = Mock(return_value=iter([thread, thread]))
+        mock_conn = Mock()
+        mock_conn.recv.return_value =  b'{ "target": "sync_start", "kwargs": { "arg1": "value1", "arg2": "value2" } }'
+        Republisher().handle_connection(mock_conn, Mock())
+        mock_conn.sendall.assert_called_with(b'{"result": "Republish complete"}')
+        thread.join.assert_has_calls([call(), call()])
         
     @patch.object(Republisher, "stop_republish", return_value="STOP_RESULT")
     def test_handle_connection_stop(self, mock_method):

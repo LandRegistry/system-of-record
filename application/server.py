@@ -1,9 +1,8 @@
 from application.models import SignedTitles
 from application import app
 from application import db
-from application import republish_title_instance
+from application.republish_all_multi import Republisher
 from flask import request, g
-# from kombu import Connection, Producer, Exchange, Queue
 import traceback
 from sqlalchemy.exc import IntegrityError
 from python_logging.logging_utils import linux_user, client_ip, log_dir
@@ -11,14 +10,13 @@ import re
 import os
 import os.path
 import json
-
-
-PATH='./republish_progress.json'
+import socket
+import multiprocessing
+import time
 
 @app.route("/")
 def check_status():
     return "Everything is OK"
-
 
 @app.route("/insert", methods=["POST"])
 def insert():
@@ -62,8 +60,6 @@ def insert():
                  request, 'debug', title_number))
     return success_message, 201
 
-
-
 def publish_json_to_queue(request_json, title_number):
     # Next write to queue for consumption by register publisher
     from application import producer, exchange, system_of_record_queue, connection
@@ -77,8 +73,6 @@ def publish_json_to_queue(request_json, title_number):
     publish_to_sor(request_json, exchange=exchange, routing_key=system_of_record_queue.routing_key, serializer='json',
                      headers={'title_number': title_number})
 
-
-
 def make_log_msg(message, request, log_level, title_number):
     #Constructs the message to submit to audit.
     msg = message + 'Client ip address is: %s. ' % client_ip(request)
@@ -86,7 +80,6 @@ def make_log_msg(message, request, log_level, title_number):
     msg = msg + 'Title number is: %s. ' % title_number
     msg = msg + 'Logged at: system-of-record/%s. ' % log_dir(log_level)
     return msg
-
 
 def get_title_number(request):
     #gets the title number from minted json
@@ -97,18 +90,15 @@ def get_title_number(request):
         app.logger.error(make_log_msg(error_message, request, 'error', request.get_json()))
         return error_message + str(err)
 
-
 def remove_username_password(endpoint_string):
     try:
         return re.sub('://[^:]+:[^@]+@', '://', endpoint_string)
     except:
         return "unknown endpoint"
 
-
 def rabbit_endpoint():
     #We don't want to include the username and password for the endpoint in logs
     return remove_username_password(app.config['RABBIT_ENDPOINT'])
-
 
 @app.route("/republish", methods=["POST"])
 def republish():
@@ -122,7 +112,7 @@ def republish():
         # get all versions of the register for a title number.  Key 'all-versions' contains a boolean.
         if 'all_versions' in a_title and a_title['all_versions']:
             try:
-                republish_all_versions_of_title(a_title)
+                start_republish({'title_number': a_title['title_number']}, True)
             except:
                 error_count += 1
 
@@ -130,21 +120,22 @@ def republish():
         # NB. Possible to have versions with same title_number and application_reference, but different geometry_application_reference
         elif 'application_reference' in a_title and 'geometry_application_reference' not in a_title:
             try:
-                republish_by_title_and_application_reference(a_title, True)
+                start_republish({'title_number': a_title['title_number'], 'application_reference': a_title['application_reference']}, True)
             except:
                 error_count += 1
 
         # get specific version of register by title_number, application_reference and geometry_application_reference
         elif 'application_reference' in a_title and 'geometry_application_reference' in a_title:
             try:
-                republish_by_title_and_app_and_geo_refs(a_title, True)
+                start_republish({'title_number': a_title['title_number'], 'application_reference': a_title['application_reference'],
+                                 'geometry_application_reference': a_title['geometry_application_reference'] }, True)
             except:
                 error_count +=1
 
         # get the latest version of the register for a title number
         else:
             try:
-                republish_latest_version(a_title)
+                start_republish({'title_number': a_title['title_number'], 'newest_only': True}, True)
             except:
                 error_count += 1
 
@@ -155,261 +146,115 @@ def republish():
     else:
         return 'No errors.  Number of titles in JSON: %i' % total_count, 200
 
-
-def republish_latest_version(republish_json):
-    try:
-        row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
-
-        sql = "select record from records where (record->'data'->>'title_number')::text = '%s' order by id desc limit 1;" % \
-              republish_json['title_number']
-        result = execute_query(sql)
-        for row in result:
-            row_count += 1
-            publish_json_to_queue((row[0]), republish_json['title_number'])
-
-        if row_count == 0:
-            raise NoRowFoundException('title_number %s not found in database. ' % republish_json['title_number'])
-
-        app.logger.audit(
-            make_log_msg(
-                'Republishing latest version of title to %s queue at %s. ' % (
-                    app.config['RABBIT_QUEUE'], rabbit_endpoint()),
-                    request, 'debug', republish_json['title_number']))
-
-        return 'republish_latest_version successful'  # for testing
-
-    except Exception as err:
-        error_message = 'Error republishing latest version of %s. ' % republish_json['title_number']
-        app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
-        app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
-        raise # re-raise error for counting errors.
-
-
-def republish_by_title_and_application_reference(republish_json, perform_audit):
-    try:
-        row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
-
-        sql = "select record from records where (record->'data'->>'title_number')::text = '%s' and (record->'data'->>'application_reference')::text = '%s';" % (
-            republish_json['title_number'], republish_json['application_reference'])
-        result = execute_query(sql)
-
-        for row in result:
-            row_count += 1
-            publish_json_to_queue((row[0]), republish_json['title_number'])
-
-        if row_count == 0:
-            raise NoRowFoundException('application %s for title number %s not found in database. ' % (
-                republish_json['application_reference'], republish_json['title_number']))
-
-        if perform_audit: # No audit is system performing a full republish.
-            app.logger.audit(
-                make_log_msg(
-                    'Republishing application %s to  %s queue at %s. ' % (
-                        republish_json['application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
-                    request, 'debug', republish_json['title_number']))
-
-        return 'republish_by_title_and_application_reference successful'  # for testing
-
-    except Exception as err:
-        error_message = 'Error republishing title %s with application reference %s. ' % (
-            republish_json['title_number'], republish_json['application_reference'])
-        app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
-        app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
-        raise # re-raise error for counting errors.
-
-def republish_by_title_and_app_and_geo_refs(republish_json, perform_audit):
-    try:
-        row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
-
-        sql = "select record from records where (record->'data'->>'title_number')::text = '%s' and (record->'data'->>'application_reference')::text = '%s' and (record->'data'->>'geometry_application_reference')::text = '%s';" % (
-            republish_json['title_number'], republish_json['application_reference'], republish_json['geometry_application_reference'])
-        result = execute_query(sql)
-
-        for row in result:
-            row_count += 1
-            publish_json_to_queue((row[0]), republish_json['title_number'])
-
-        if row_count == 0:
-            raise NoRowFoundException('application %s with geometry application reference %s for title number %s not found in database. ' % (
-                republish_json['application_reference'], republish_json['geometry_application_reference'], republish_json['title_number']))
-
-        if perform_audit: # No audit is system performing a full republish.
-            app.logger.audit(
-                make_log_msg(
-                    'Republishing application %s with geometry application reference %s to  %s queue at %s. ' % (
-                        republish_json['application_reference'], republish_json['geometry_application_reference'], app.config['RABBIT_QUEUE'], rabbit_endpoint()),
-                    request, 'debug', republish_json['title_number']))
-
-        return 'republish_by_title_and_app_and_geo_refs successful'  # for testing
-
-    except Exception as err:
-        error_message = 'Error republishing title %s with application reference %s and geometry application reference %s. ' % (
-            republish_json['title_number'], republish_json['application_reference'], republish_json['geometry_application_reference'])
-        app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
-        app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
-        raise # re-raise error for counting errors.
-
-def republish_all_versions_of_title(republish_json):
-    try:
-        row_count = 0 #resultproxy.rowcount unreliable in sqlalchemy
-
-        sql = "select record from records where (record->'data'->>'title_number')::text = '%s';" % republish_json[
-            'title_number']
-        result = execute_query(sql)
-
-        for row in result:
-            row_count += 1
-            publish_json_to_queue((row[0]), republish_json['title_number'])
-
-        if row_count == 0:
-            raise NoRowFoundException('title_number %s not found in database .' % republish_json['title_number'])
-
-        app.logger.audit(
-            make_log_msg(
-                'Republishing all versions of title to %s queue at %s. ' % (app.config['RABBIT_QUEUE'], rabbit_endpoint()),
-                request, 'debug', republish_json['title_number']))
-
-        return 'republish_all_versions_of_title successful'  # for testing
-
-    except Exception as err:
-            error_message = 'Error republishing title %s. ' % (
-                republish_json['title_number'])
-            app.logger.error(make_log_msg(error_message, request, 'error', republish_json['title_number']))
-            app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
-            raise  # re-raise error for counting errors.
-
-
 @app.route("/republish/everything")
 def republish_everything_without_params():
-    republish_title_instance.set_republish_flag(None)
-    return republish_everything(None, None)  # No date_from and date_to specified
+    print("Starting full republish...")
+    return start_republish()
 
 @app.route("/republish/everything/<date_time_from>")
 def republish_everything_with_from_param(date_time_from):
-    return republish_everything(date_time_from, None)
+    print("Starting republish from date...")
+    date_time_from = re.sub('[T]', ' ', date_time_from)
+    return start_republish({ 'start_date': date_time_from })
 
 @app.route("/republish/everything/<date_time_from>/<date_time_to>")
 def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
-    return republish_everything(date_time_from, date_time_to)
-
-def republish_everything(date_time_from, date_time_to):
-    # check that a republish job is not already underway.
-    if os.path.isfile(PATH):
-        if check_job_running() == 'running':
-            audit_message = 'New republish job attempted.  However, one already in progress. '
-            app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
-            return "Republish job already in progress", 200
-        elif check_job_running() == 'not running':
-            audit_message = 'Existing republish everything job resumed. '
-            app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
-            # resume republishing events.
-            republish_title_instance.republish_all_titles(app, db)
-            return "Resumed republish job.", 200
-        else:
-            return "Unknown job status.", 200
-    else:
-        # Get the corresponding row ids for the date supplied.
-        if date_time_from is None:
-            from_id = 0
-        else:
-            from_id = get_first_id_for_date_time(date_time_from)
-            app.logger.audit('Request to republish everything from %s' % date_time_from)
-        if date_time_to is None:
-            to_id = get_last_system_of_record_id()
-        else:
-            to_id = get_last_id_for_date_time(date_time_to)
-            app.logger.audit('Request to republish everything up to %s' % date_time_to)
-
-        # Create a new job file
-        new_job_data = {"current_id": from_id, "last_id": to_id, "count": 0}
-        with open(PATH, 'w') as f:
-            json.dump(new_job_data, f, ensure_ascii=False)
-        audit_message = 'New republish everything job submitted. '
-        app.logger.audit(make_log_msg(audit_message, request, 'debug', 'all titles'))
-        # Check for and process republishing events.
-        republish_title_instance.republish_all_titles(app, db)
-        return "New republish job submitted", 200
-
-
-def get_first_id_for_date_time(date_time_from):
+    print("Starting date range republish...")
     # Date required in format of "2015-11-11T13:42:50.840623", Time separator T is removed with REGEX.
     date_time_from = re.sub('[T]', ' ', date_time_from)
-    signed_titles_instance = db.session.query(SignedTitles).filter(SignedTitles.created_date >= date_time_from).first()
-    return signed_titles_instance.id
-
-
-def get_last_id_for_date_time(date_time_to):
-    # Date required in format of "2015-11-11T13:42:50.840623", Time separator T is removed with REGEX.
     date_time_to = re.sub('[T]', ' ', date_time_to)
-    signed_titles_instance = db.session.query(SignedTitles).filter(
-        SignedTitles.created_date <= date_time_to).order_by(SignedTitles.created_date.desc()).first()
-    return signed_titles_instance.id
-
+    return start_republish({ 'start_date': date_time_from, 'end_date': date_time_to })
 
 @app.route("/republish/everything/status")
 def check_job_running():
-    if republish_title_instance.republish_all_in_progress():
+    print("Query republish status...")
+    res = republish_command({'target':'running'})
+    if res:
         return 'running'
     else:
         return 'not running'
 
-def get_last_system_of_record_id():
-    signed_titles_instance = db.session.query(SignedTitles).order_by(SignedTitles.id.desc()).first()
-    return signed_titles_instance.id
-
-
-def execute_query(sql):
-    return db.engine.execute(sql)
-
-
-class NoRowFoundException(Exception):
-    pass
-
 @app.route("/republish/pause")
 def pause_republish():
-    republish_title_instance.set_republish_flag('pause')
-    app.logger.audit(
-        make_log_msg(
-            'Republishing has been paused. ',
-            request, 'debug', 'n/a'))
-    return 'paused republishing from System of Record and will re-start on the resume command'
+    print("Pausing republish...")
+    res = republish_command({'target':'stop'})
+    if res == "Republish stopped":
+        return 'paused republishing from System of Record and will re-start on the resume command'
+    else:
+        return res
 
 @app.route("/republish/abort")
 def abort_republish():
-    republish_title_instance.set_republish_flag('abort')
-    app.logger.audit(
-        make_log_msg(
-            'Republishing has been aborted. ',
-            request, 'debug', 'n/a'))
-    return 'aborted republishing from System of Record'
+    print("Aborting republish...")
+    res = republish_command({'target':'reset'})
+    if res == "Reset":
+        return 'aborted republishing from System of Record'
+    else:
+        return res
 
 @app.route("/republish/resume")
 def resume_republish():
-    if os.path.isfile(PATH):
-        republish_title_instance.set_republish_flag(None)
-        republish_everything_without_params()
-        app.logger.audit(
-            make_log_msg(
-                'Republishing has been resumed. ',
-                request, 'debug', 'n/a'))
+    print("Resuming Republishing...")
+    res = republish_command({'target':'resume'})
+    if res == 'Started' or 'Already running':
         return 'republishing has been resumed'
-    else:
-        app.logger.audit(
-            make_log_msg(
-                'Republishing is not in progress, unable to resume. ',
-                request, 'debug', 'n/a'))
+    elif res == 'Nothing to resume':
         return 'Republishing cannot resume as no job in progress'
-
+    else:
+        return res
+    
 @app.route("/republish/progress")
 def republish_progress():
-    progress = progress_republish()
-    return progress
+    print("Retrieving Republish progress...")
+    res = republish_command({'target':'progress'})
+    #TODO: Backwards compatibility (please remove me when updating front end)
+    res['republish_started'] = 'true' if res['is_running'] else 'false'
+    return json.dumps(res)
 
-def progress_republish():
-    republish_counts = republish_title_instance.get_republish_instance_variable()
-    if os.path.exists(PATH):
-        republish_counts['republish_started'] = 'true'
+def start_republish(kwargs={}, sync=False):
+    print("Starting republishing %s..." % (json.dumps(kwargs)))
+    if sync:
+        command = 'sync_start'
     else:
-        republish_counts['republish_started'] = 'false'
-    display = json.dumps(republish_counts)
-    return (display)
+        command = 'start'
+    res = republish_command({'target': command, 'kwargs': kwargs})
+    if res == "Republish started":
+        return "New republish job submitted"
+    elif sync:
+        if res == "Republish complete":
+            return res
+        else:
+            print("Republish failed: ", res)
+            raise Exception(res)
+    else:
+        return res
+
+def republish_command(command):
+    '''Sends the given command to the republisher'''
+    socket = republish_connection()
+    socket.sendall(json.dumps(command).encode("utf-8"))
+    reply = socket.recv(4096).decode("utf-8")
+    socket.close()
+    res = json.loads(reply)
+    return res['result']
+
+def republish_connection():
+    '''Establish republish connection and return socket, starts republisher if not running'''
+    republish_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        republish_socket.connect("\0republish-socket")
+        return republish_socket
+    except ConnectionRefusedError:
+        print("Republisher not running, starting...")
+        multiprocessing.Process(target=Republisher().republish_process, args=[app.config['SQLALCHEMY_DATABASE_URI'], 
+                                                                              app.config['RABBIT_ENDPOINT'],
+                                                                              app.config['REPUBLISH_QUEUE'],
+                                                                              app.config['RABBIT_QUEUE'],
+                                                                              app.config['RABBIT_ROUTING_KEY']]).start()
+        for _x in range(10):
+            try:
+                republish_socket.connect("\0republish-socket")
+                return republish_socket
+            except ConnectionRefusedError:
+                print("Republisher connection refused, retrying...")
+                time.sleep(1)

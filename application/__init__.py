@@ -2,7 +2,6 @@ from flask import Flask, request, g
 import os
 from flask.ext.sqlalchemy import SQLAlchemy
 from python_logging.setup_logging import setup_logging
-from .republish_all import RepublishTitles
 from kombu import Connection, Producer, Exchange, Queue, Consumer
 
 
@@ -10,7 +9,6 @@ setup_logging()
 app = Flask(__name__)
 db = SQLAlchemy(app)
 app.config.from_object(os.environ.get('SETTINGS'))
-republish_title_instance = RepublishTitles()
 
 if os.environ.get('SETTINGS') != "config.UnitTestConfig":
     #Configure the RabbitMQ connection, queue and producer for the flask app.
