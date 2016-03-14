@@ -198,10 +198,10 @@ class Republisher:
             sql = sql + "AND (record->'data'->>'geometry_application_reference')::text = :geometry_application_reference "
             params['geometry_application_reference'] = geometry_application_reference
         if start_date:
-            sql = sql + "AND created_date > :start_date "
+            sql = sql + "AND created_date >= :start_date "
             params['start_date'] = start_date
         if end_date:
-            sql = sql + "AND created_date < :end_date "
+            sql = sql + "AND created_date <= :end_date "
             params['end_date'] = end_date
         if newest_only:
             sql = sql + "ORDER BY id DESC LIMIT 1 "

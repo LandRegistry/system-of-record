@@ -69,6 +69,7 @@ command=$HOME/venvs/system-of-record/bin/gunicorn -w 16 --log-file=- --log-level
 directory=$dir
 autostart=true
 autorestart=true
+stopasgroup=true
 user=$USER
 environment=$SUPERVISOR_ENV
 EOF

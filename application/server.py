@@ -224,10 +224,12 @@ def start_republish(kwargs={}, sync=False):
 def republish_command(command):
     '''Sends the given command to the republisher'''
     socket = republish_connection()
-    socket.sendall(json.dumps(command).encode("utf-8"))
-    reply = socket.recv(4096).decode("utf-8")
-    socket.close()
-    res = json.loads(reply)
+    try:
+        socket.sendall(json.dumps(command).encode("utf-8"))
+        reply = socket.recv(4096).decode("utf-8")
+        res = json.loads(reply)
+    finally:
+        socket.close()
     return res['result']
 
 def republish_connection():
@@ -238,11 +240,13 @@ def republish_connection():
         return republish_socket
     except ConnectionRefusedError:
         print("Republisher not running, starting...")
-        multiprocessing.Process(target=Republisher().republish_process, args=[app.config['SQLALCHEMY_DATABASE_URI'], 
+        mp = multiprocessing.Process(target=Republisher().republish_process, args=[app.config['SQLALCHEMY_DATABASE_URI'], 
                                                                               app.config['RABBIT_ENDPOINT'],
                                                                               app.config['REPUBLISH_QUEUE'],
                                                                               app.config['RABBIT_QUEUE'],
-                                                                              app.config['RABBIT_ROUTING_KEY']]).start()
+                                                                              app.config['RABBIT_ROUTING_KEY']])
+        mp.daemon = True
+        mp.start()
         for _x in range(10):
             try:
                 republish_socket.connect("\0republish-socket")
@@ -250,3 +254,4 @@ def republish_connection():
             except ConnectionRefusedError:
                 print("Republisher connection refused, retrying...")
                 time.sleep(1)
+        raise
