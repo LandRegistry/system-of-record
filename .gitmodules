@@ -1,3 +1,0 @@
-[submodule "logger"]
-	path = logger
-	url = ../python_logging

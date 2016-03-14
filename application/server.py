@@ -5,7 +5,6 @@ from application.republish_all_multi import Republisher
 from flask import request, g
 import traceback
 from sqlalchemy.exc import IntegrityError
-from python_logging.logging_utils import linux_user, client_ip, log_dir
 import re
 import os
 import os.path
@@ -13,9 +12,16 @@ import json
 import socket
 import multiprocessing
 import time
+import pwd
+import datetime
+import sys
+import logging
+
+logging.basicConfig(format='%(levelname)s %(asctime)s [SystemOfRecord] Message: %(message)s', level=logging.INFO, datefmt='%d.%m.%y %I:%M:%S %p')
 
 @app.route("/")
 def check_status():
+    logging.info("SOR status check OK")
     return "Everything is OK"
 
 @app.route("/insert", methods=["POST"])
@@ -31,33 +37,25 @@ def insert():
         db.session.flush()
 
         # Publish to queue upon successful insertion
-        publish_json_to_queue(request.get_json(), get_title_number(request))
-        app.logger.audit(
-            make_log_msg(
-                'Record successfully published to %s queue at %s. ' % (app.config['RABBIT_QUEUE'], rabbit_endpoint()),
-                    request, 'debug', title_number))
-
+        publish_json_to_queue(request.get_json(), title_number)
+        logging.info( make_log_msg( 'Record successfully published to %s queue at %s. ' % (app.config['RABBIT_QUEUE'], rabbit_endpoint()), title_number ) )
         db.session.commit()
 
     except IntegrityError as err:
         db.session.rollback()
         error_message = 'Integrity error. Check that title number, application reference and geometry application reference are unique. '
-        app.logger.error(make_log_msg(error_message, request, 'error', title_number))
-        app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
+        logging.error( make_log_msg( error_message + err.args[0], title_number ) )
         return error_message, 409
 
     except Exception as err:
         db.session.rollback()
         error_message = 'Service failed to insert to the database. '
-        app.logger.error(make_log_msg(error_message, request, 'error', title_number))
-        app.logger.error(error_message + err.args[0])  # Show limited exception message without reg data.
+        logging.error( make_log_msg( error_message + err.args[0], title_number ) )
         return error_message, 500
 
     postgres_endpoint = remove_username_password(app.config['SQLALCHEMY_DATABASE_URI'])
     success_message = 'Record successfully inserted to database at %s. ' % postgres_endpoint
-    app.logger.audit(
-        make_log_msg(success_message,
-                 request, 'debug', title_number))
+    logging.info( make_log_msg( success_message, title_number) )
     return success_message, 201
 
 def publish_json_to_queue(request_json, title_number):
@@ -65,29 +63,21 @@ def publish_json_to_queue(request_json, title_number):
     from application import producer, exchange, system_of_record_queue, connection
 
     def errback(exc, interval):
-        app.logger.error('Error publishing to queue: %r', exc, exc_info=1)
-        app.logger.info('Retry publishing in %s seconds.', interval)
+        logging.error( make_log_msg( 'Error publishing to queue: %r.' % exc, title_number ) )
+        logging.info( make_log_msg( 'Retry publishing in %s seconds' % interval, title_number ) )
 
     # connection.ensure will re-establish the connection and retry, if the connection is lost.
     publish_to_sor = connection.ensure(producer, producer.publish, errback=errback, max_retries=10)
     publish_to_sor(request_json, exchange=exchange, routing_key=system_of_record_queue.routing_key, serializer='json',
                      headers={'title_number': title_number})
 
-def make_log_msg(message, request, log_level, title_number):
-    #Constructs the message to submit to audit.
-    msg = message + 'Client ip address is: %s. ' % client_ip(request)
-    msg = msg + 'Signed in as: %s. ' % linux_user()
-    msg = msg + 'Title number is: %s. ' % title_number
-    msg = msg + 'Logged at: system-of-record/%s. ' % log_dir(log_level)
-    return msg
-
 def get_title_number(request):
     #gets the title number from minted json
     try:
         return request.get_json()['data']['title_number']
     except Exception as err:
-        error_message = "title number not found. Check JSON format: "
-        app.logger.error(make_log_msg(error_message, request, 'error', request.get_json()))
+        error_message = "Title number not found. Check JSON format: "
+        logging.error( make_log_msg( error_message + request.get_json() , title_number ) )
         return error_message + str(err)
 
 def remove_username_password(endpoint_string):
@@ -139,26 +129,26 @@ def republish():
 
 @app.route("/republish/everything")
 def republish_everything_without_params():
-    print("Starting full republish...")
+    logging.info( make_log_msg( 'Starting full republish..' ) )
     return start_republish()
 
 @app.route("/republish/everything/<date_time_from>")
 def republish_everything_with_from_param(date_time_from):
-    print("Starting republish from date...")
     date_time_from = re.sub('[T]', ' ', date_time_from)
+    logging.info( make_log_msg( 'Starting republish from date %s' % date_time_from  ) )
     return start_republish({ 'start_date': date_time_from })
 
 @app.route("/republish/everything/<date_time_from>/<date_time_to>")
 def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
-    print("Starting date range republish...")
     # Date required in format of "2015-11-11T13:42:50.840623", Time separator T is removed with REGEX.
     date_time_from = re.sub('[T]', ' ', date_time_from)
     date_time_to = re.sub('[T]', ' ', date_time_to)
+    logging.info( make_log_msg( 'Starting date range republish from %s to %s' % date_time_from, date_time_to  ) )
     return start_republish({ 'start_date': date_time_from, 'end_date': date_time_to })
 
 @app.route("/republish/everything/status")
 def check_job_running():
-    print("Query republish status...")
+    logging.info( make_log_msg( 'Query republish status...' ) )
     res = republish_command({'target':'running'})
     if res:
         return 'running'
@@ -167,7 +157,7 @@ def check_job_running():
 
 @app.route("/republish/pause")
 def pause_republish():
-    print("Pausing republish...")
+    logging.info( make_log_msg( 'Pausing republish...' ) )
     res = republish_command({'target':'stop'})
     if res == "Republish stopped":
         return 'paused republishing from System of Record and will re-start on the resume command'
@@ -176,7 +166,7 @@ def pause_republish():
 
 @app.route("/republish/abort")
 def abort_republish():
-    print("Aborting republish...")
+    logging.info( make_log_msg( 'Aborting republish...' ) )
     res = republish_command({'target':'reset'})
     if res == "Reset":
         return 'aborted republishing from System of Record'
@@ -185,7 +175,7 @@ def abort_republish():
 
 @app.route("/republish/resume")
 def resume_republish():
-    print("Resuming Republishing...")
+    logging.info( make_log_msg( 'Resuming republish...' ) )
     res = republish_command({'target':'resume'})
     if res == 'Started' or res == 'Already running':
         return 'republishing has been resumed'
@@ -196,7 +186,7 @@ def resume_republish():
     
 @app.route("/republish/progress")
 def republish_progress():
-    print("Retrieving Republish progress...")
+    logging.info( make_log_msg( 'Retrieving Republish progress...' ) )
     res = republish_command({'target':'progress'})
     #TODO: Backwards compatibility (please remove me when updating front end)
     res['republish_started'] = 'true' if res['is_running'] else 'false'
@@ -204,7 +194,7 @@ def republish_progress():
 
 def start_republish(kwargs={}, sync=False):
     '''Start republish with the given criteria, wait for completion if sync = true'''
-    print("Starting republishing %s..." % (json.dumps(kwargs)))
+    logging.info( make_log_msg( 'Starting republishing %s...' % (json.dumps(kwargs) ) ) )
     if sync:
         command = 'sync_start'
     else:
@@ -216,7 +206,7 @@ def start_republish(kwargs={}, sync=False):
         if res == "Republish complete":
             return res
         else:
-            print("Republish failed: ", res)
+            logging.info( make_log_msg( 'Republish failed: %s' % res ) )
             raise Exception(res)
     else:
         return res
@@ -237,7 +227,7 @@ def republish_connection():
         republish_socket.connect("\0republish-socket")
         return republish_socket
     except ConnectionRefusedError:
-        print("Republisher not running, starting...")
+        logging.info( make_log_msg( 'Republisher not running, starting...' ) )
         multiprocessing.Process(target=Republisher().republish_process, args=[app.config['SQLALCHEMY_DATABASE_URI'], 
                                                                               app.config['RABBIT_ENDPOINT'],
                                                                               app.config['REPUBLISH_QUEUE'],
@@ -248,5 +238,18 @@ def republish_connection():
                 republish_socket.connect("\0republish-socket")
                 return republish_socket
             except ConnectionRefusedError:
-                print("Republisher connection refused, retrying...")
+                logging.info( make_log_msg( 'Republisher connection refused, retrying...' ) )
                 time.sleep(1)
+
+def make_log_msg(message, title_number=''):
+    if title_number == '':
+        return "{}, Raised by: {}".format( message, linux_user() )
+    else:
+        return "{}, Raised by: {}, Title Number: {}".format( message, linux_user(), title_number )
+
+
+def linux_user():
+    try:
+        return pwd.getpwuid(os.geteuid()).pw_name
+    except Exception as err:
+        return "failed to get user: %s" % err

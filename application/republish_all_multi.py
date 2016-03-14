@@ -10,7 +10,13 @@ import math
 from kombu import Connection, Producer, Exchange, Queue
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy import *
+import pwd
+import datetime
+import sys
+import logging
+import os
 
+logging.basicConfig(format='%(levelname)s %(asctime)s [SystemOfRecord] Message: %(message)s', level=logging.INFO, datefmt='%d.%m.%y %I:%M:%S %p')
 
 class Republisher:
     """Republisher class for republishing from the system or record.  Designed to be run as a multiprocessing process
@@ -27,21 +33,22 @@ class Republisher:
         self.threads = threads
         self.consumer_threads = []
         self.set_progress()
-        print("Creating socket...")
+
+        logging.info( make_log_msg( 'Creating socket...' ) )
         republish_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        print("Binding to socket...")
+        logging.info( make_log_msg( 'Binding to socket...' ) )
         republish_socket.bind("\0republish-socket")
-        print("Listening on socket...")
+        logging.info( make_log_msg( 'Listening on socket...' ) )
         republish_socket.listen(10)
-        print("Socket now listening")
-        print("Establishing DB pool...")
+        logging.info( make_log_msg( 'Socket now listening' ) )
+        logging.info( make_log_msg( 'Establishing DB pool...' ) )
         engine = create_engine(db_uri, pool_size=threads + 1)
         session_factory = sessionmaker(bind=engine)
         self.db_session = scoped_session(session_factory)
-        print("Establishing AMQP pool...")
+        logging.info( make_log_msg( 'Establishing AMQP pool...' ) )
         self.amqp_pool = Connection(amqp_uri).Pool((threads * 2) + 1)
-        print("Pools established")
-        print("Handling connections...")
+        logging.info( make_log_msg( 'Pools established' ) )
+        logging.info( make_log_msg( 'Handling connections...' ) )
         while 1:
             try:
                 t = threading.Thread(target=self.handle_connection, args=republish_socket.accept())
@@ -49,7 +56,7 @@ class Republisher:
                 #Too much hassle to handle concurrent connections so just wait until done before accepting the next one
                 t.join()
             except (KeyboardInterrupt, SystemExit):
-                print("Stopping republisher")
+                logging.info( make_log_msg( 'Stopping republisher' ) )
                 self.stop_event.set()
                 break
         republish_socket.close()
@@ -63,7 +70,7 @@ class Republisher:
         
     def handle_connection(self, conn, addr):
         """Handles connection from socket, calling appropriate method.  Designed to be called as a threading thread"""
-        print('Thread %s: Accepted client connection' % (threading.current_thread().ident))
+        logging.info( make_log_msg( 'Thread %s: Accepted client connection' % (threading.current_thread().ident) ) )
         try:
             data = json.loads(conn.recv(10240).decode("utf-8"))
             command = data['target']
@@ -93,7 +100,7 @@ class Republisher:
             raise
         finally:
             conn.close()
-            print('Thread %s: Client Disconnected' % (threading.current_thread().ident))
+            logging.info( make_log_msg( 'Thread %s: Client Disconnected' % (threading.current_thread().ident) ) )
         
     def republish_progress(self):
         """Returns the current republish progress as a dictionary"""
@@ -112,7 +119,7 @@ class Republisher:
         self.stop_republish()
         for thread in self.consumer_threads:
             thread.join()
-        print('Thread %s: Clearing republish queue...' % (threading.current_thread().ident))
+        logging.info( make_log_msg( 'Thread %s: Clearing republish queue...' % (threading.current_thread().ident) ) )
         connection = self.amqp_pool.acquire(block=True, timeout=10)
         input_queue = connection.SimpleQueue(self.republish_queue)
         try:
@@ -121,7 +128,7 @@ class Republisher:
         finally:
             input_queue.close()
             connection.release()
-            print('Thread %s: Released connection' % (threading.current_thread().ident))
+            logging.info( make_log_msg( 'Thread %s: Released connection' % (threading.current_thread().ident) ) )
         return "reset"
     
     def is_running(self):
@@ -166,7 +173,7 @@ class Republisher:
     
     def queue_count(self):
         """Returns count of republishing queue"""
-        print('Thread %s: Retrieving count from republish queue...' % (threading.current_thread().ident))
+        logging.info( make_log_msg( 'Thread %s: Retrieving count from republish queue...' % (threading.current_thread().ident) ) )
         connection = self.amqp_pool.acquire(block=True, timeout=10)
         input_queue = connection.SimpleQueue(self.republish_queue)
         try:
@@ -175,7 +182,7 @@ class Republisher:
         finally:
             input_queue.close()
             connection.release()
-            print('Thread %s: Released connection' % (threading.current_thread().ident))
+            logging.info( make_log_msg( 'Thread %s: Released connection' % (threading.current_thread().ident) ) )
         return count
     
     def populate_queue_ids(self, title_number, application_reference, geometry_application_reference, start_date, end_date, newest_only, block_size):
@@ -205,12 +212,11 @@ class Republisher:
             params['end_date'] = end_date
         if newest_only:
             sql = sql + "ORDER BY id DESC LIMIT 1 "
-        print('Thread %s: Retrieving ID(s) from DB...' % (threading.current_thread().ident))
+        logging.info( make_log_msg( 'Thread %s: Retrieving ID(s) from DB...' % (threading.current_thread().ident) ) )
         try:
             rows = self.db_session.execute(sql, params)
-            print(rows.rowcount)
             if rows.rowcount < 1:
-                print("No rows for republish criteria")
+                logging.info( make_log_msg( 'No rows for republish criteria' ) )
                 raise Exception("No rows for republish criteria")
             for row in rows:
                 if row['id_start'] and row['id_end']:
@@ -218,15 +224,15 @@ class Republisher:
                                                                                      'geometry_application_reference': geometry_application_reference, 'start_date': start_date,
                                                                                      'end_date': end_date, 'newest_only': newest_only })
                 else:
-                    print("No IDs for republish criteria")
+                    logging.info( make_log_msg( 'No IDs for republish criteria' ) )
                     raise Exception("No IDs for republish criteria")
         finally:
             self.db_session.remove()
-            print('Thread %s: Released connection' % (threading.current_thread().ident))
+            logging.info( make_log_msg( 'Thread %s: Released connection' % (threading.current_thread().ident) ) )
             
     def send_messages(self, id_start, id_end, batch_size, kwargs):
         """Sends messages to the republish queue for the supplied id range.  Set message headers to contain information on the current republish"""
-        print('Thread %s: Sending republish messages for ID(s) %s - %s' % (threading.current_thread().ident, id_start, id_end))
+        logging.info( make_log_msg( 'Thread %s: Sending republish messages for ID(s) %s - %s' % (threading.current_thread().ident, id_start, id_end) ) )
         connection = self.amqp_pool.acquire(block=True, timeout=10)
         input_queue = connection.SimpleQueue(self.republish_queue)
         try:
@@ -242,11 +248,11 @@ class Republisher:
         finally:
             input_queue.close()
             connection.release()
-            print('Thread %s: Released connection' % (threading.current_thread().ident))
+            logging.info( make_log_msg( 'Thread %s: Released connection' % (threading.current_thread().ident) ) )
     
     def read_messages(self):
         """Main consuming thread, reads messages one by one endlessly until stopped or the queue is empty.  Designed to be run as a threading Thread."""
-        print('Thread %s: Retrieving republish messages...' % (threading.current_thread().ident))
+        logging.info( make_log_msg( 'Thread %s: Retrieving republish messages...' % (threading.current_thread().ident) ) )
         connection = self.amqp_pool.acquire(block=True, timeout=10)
         input_queue = connection.SimpleQueue(self.republish_queue)
         try:
@@ -255,11 +261,11 @@ class Republisher:
                 message = input_queue.get(block=True, timeout=10)
                 self.process_message(message)
                 if self.stop_event.is_set():
-                    print('Thread %s: Stopping thread' % (threading.current_thread().ident))
+                    logging.info( make_log_msg( 'Thread %s: Stopping thread' % (threading.current_thread().ident) ) )
                     break
                 message.ack()
         except input_queue.Empty:
-            print('Thread %s: No more messages' % (threading.current_thread().ident))
+            logging.info( make_log_msg( 'Thread %s: No more messages' % (threading.current_thread().ident) ) )
         finally:
             input_queue.close()
             connection.release()
@@ -272,20 +278,33 @@ class Republisher:
         
     def query_sor_publish(self, id_start, id_end):
         """Query SOR for json for the given id range and publish each to the output queue"""
-        print('Thread %s: Preparing to send messages to output queue...' % (threading.current_thread().ident))
+        logging.info( make_log_msg( 'Thread %s: Preparing to send messages to output queue...' % (threading.current_thread().ident) ) )
         connection = self.amqp_pool.acquire(block=True, timeout=10)
         publisher_queue = connection.SimpleQueue(self.output_queue)
         try:
-            print("Thread %s: Retrieving and publishing record(s) %s - %s" % (threading.current_thread().ident, id_start, id_end))
+            logging.info( make_log_msg( 'Thread %s: Retrieving and publishing record(s) %s - %s' % (threading.current_thread().ident, id_start, id_end) ) )
             sql = "SELECT id, (record->'data'->>'title_number')::text as title, record::text as record FROM records WHERE id BETWEEN :id_start AND :id_end ORDER BY id"
             params = { "id_start": id_start, "id_end": id_end }
             for row in self.db_session.execute(sql, params):
                 if self.stop_event.is_set():
-                    print('Thread %s: Stopping republishing' % (threading.current_thread().ident))
+                    logging.info( make_log_msg( 'Thread %s: Stopping republishing' % (threading.current_thread().ident) ) )
                     break
                 publisher_queue.put(row['record'], routing_key=self.output_routing_key, content_type="application/json",
                                     headers={ 'title_number': row['title'] })
-            print('Thread %s: Records republished' % (threading.current_thread().ident))
+            logging.info( make_log_msg( 'Thread %s: Records republished' % (threading.current_thread().ident) ) )
         finally:
             publisher_queue.close()
             connection.release()
+
+def make_log_msg(message, title_number=''):
+    if title_number == '':
+        return "{}, Raised by: {}".format( message, linux_user() )
+    else:
+        return "{}, Raised by: {}, Title Number: {}".format( message, linux_user(), title_number )
+
+
+def linux_user():
+    try:
+        return pwd.getpwuid(os.geteuid()).pw_name
+    except Exception as err:
+        return "failed to get user: %s" % err

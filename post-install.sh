@@ -71,4 +71,7 @@ autostart=true
 autorestart=true
 user=$USER
 environment=$SUPERVISOR_ENV
+stdout_logfile=/var/log/supervisor/systemofrecord.log
+redirect_stderr=true
+stderr_logfile=
 EOF
