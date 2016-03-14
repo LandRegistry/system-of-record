@@ -5,7 +5,7 @@ RELEASE=$2
 ITERATION=$3
 
 #return merge info from git since the last release
-text=$(git log develop $LAST_RELEASE..HEAD --pretty=format:"- %cd - %s%b%n" --merges --simplify-merges --date="short")
+text=$(git log $LAST_RELEASE..HEAD --pretty=format:"- %cd - %s%b%n" --merges --simplify-merges --date="short")
 
 slug_release="${RELEASE//./_}"
 
