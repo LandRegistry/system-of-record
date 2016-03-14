@@ -175,7 +175,6 @@ class RepublisherTest(unittest.TestCase):
                                                    {'start_date': 'A_START_DATE', 'end_date': 'A_END_DATE'})
         mock_db_session.remove.assert_called_with()
  
-             
     @patch.object(Republisher, 'db_session', create=True)
     @patch.object(Republisher, 'stop_event', create=True)
     def test_populate_queue_ids_none(self, mock_stop_event, mock_db_session):

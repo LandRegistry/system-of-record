@@ -109,39 +109,30 @@ def republish():
     # Now loop through the json elements
     for a_title in republish_json['titles']:
 
-        # get all versions of the register for a title number.  Key 'all-versions' contains a boolean.
-        if 'all_versions' in a_title and a_title['all_versions']:
-            try:
+        try:
+            # get all versions of the register for a title number.  Key 'all-versions' contains a boolean.
+            if 'all_versions' in a_title and a_title['all_versions']:
                 start_republish({'title_number': a_title['title_number']}, True)
-            except:
-                error_count += 1
 
-        # get version(s) of the register by title_number and application_reference.
-        # NB. Possible to have versions with same title_number and application_reference, but different geometry_application_reference
-        elif 'application_reference' in a_title and 'geometry_application_reference' not in a_title:
-            try:
+            # get version(s) of the register by title_number and application_reference.
+            # NB. Possible to have versions with same title_number and application_reference, but different geometry_application_reference
+            elif 'application_reference' in a_title and 'geometry_application_reference' not in a_title:
                 start_republish({'title_number': a_title['title_number'], 'application_reference': a_title['application_reference']}, True)
-            except:
-                error_count += 1
 
-        # get specific version of register by title_number, application_reference and geometry_application_reference
-        elif 'application_reference' in a_title and 'geometry_application_reference' in a_title:
-            try:
+            # get specific version of register by title_number, application_reference and geometry_application_reference
+            elif 'application_reference' in a_title and 'geometry_application_reference' in a_title:
                 start_republish({'title_number': a_title['title_number'], 'application_reference': a_title['application_reference'],
                                  'geometry_application_reference': a_title['geometry_application_reference'] }, True)
-            except:
-                error_count +=1
 
-        # get the latest version of the register for a title number
-        else:
-            try:
+            # get the latest version of the register for a title number
+            else:
                 start_republish({'title_number': a_title['title_number'], 'newest_only': True}, True)
-            except:
-                error_count += 1
+        except:
+            error_count += 1
 
         total_count += 1
 
-    if error_count != 0:
+    if error_count > 0:
         return 'Completed republish.  %i titles in JSON. Number of errors: %i' % (total_count, error_count), 202
     else:
         return 'No errors.  Number of titles in JSON: %i' % total_count, 200
@@ -196,7 +187,7 @@ def abort_republish():
 def resume_republish():
     print("Resuming Republishing...")
     res = republish_command({'target':'resume'})
-    if res == 'Started' or 'Already running':
+    if res == 'Started' or res == 'Already running':
         return 'republishing has been resumed'
     elif res == 'Nothing to resume':
         return 'Republishing cannot resume as no job in progress'
@@ -212,6 +203,7 @@ def republish_progress():
     return json.dumps(res)
 
 def start_republish(kwargs={}, sync=False):
+    '''Start republish with the given criteria, wait for completion if sync = true'''
     print("Starting republishing %s..." % (json.dumps(kwargs)))
     if sync:
         command = 'sync_start'

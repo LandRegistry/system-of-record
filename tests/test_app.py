@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch, Mock, PropertyMock, call
 from application import server
 from application.server import app,db, publish_json_to_queue, remove_username_password
 import os
@@ -8,6 +9,7 @@ import time
 from python_logging.logging_utils import log_dir, linux_user
 import json
 from testfixtures import LogCapture
+import pytest
 
 CORRECT_TEST_TITLE = '{"sig":"some_signed_data","data":{"title_number": "DN1"}}'
 INCORRECT_TEST_TITLE = '{"missing closing speech marks :"some_signed_data","data":{"title_number": "DN1"}}'
@@ -21,7 +23,6 @@ class FakeSignedTitles():
         self.record = record
 
 class TestSequenceFunctions(unittest.TestCase):
-
 
     def setUp(self):
         app.config.from_object(os.environ.get('SETTINGS'))
@@ -133,4 +134,179 @@ class TestSequenceFunctions(unittest.TestCase):
     def test_remove_username_password(self):
         self.assertEqual(remove_username_password('aprotocol://ausername:apassword@localhost:9876/'), 'aprotocol://localhost:9876/')
         self.assertEqual(remove_username_password(None), 'unknown endpoint')
+    
+    @patch('application.server.socket.socket')            
+    def test_republish_connection_running(self, mock_socket):
+        assert server.republish_connection() == mock_socket.return_value
+        mock_socket.return_value.connect.assert_called_with("\0republish-socket")
 
+    @patch('application.server.socket.socket')
+    @patch('application.server.multiprocessing.Process')           
+    def test_republish_connection_not_running_retry(self, mock_process, mock_socket):
+        mock_socket.return_value.connect.side_effect = [ ConnectionRefusedError(), ConnectionRefusedError(), Mock() ]
+        assert server.republish_connection() == mock_socket.return_value
+        mock_socket.return_value.connect.assert_called_with("\0republish-socket")
+        
+    @patch('application.server.republish_connection')
+    def test_republish_command(self, mock_connection):
+        mock_connection.return_value.recv.return_value = b'{"result": "by your command"}'
+        assert server.republish_command({'command': 'me'}) == "by your command"
+        mock_connection.return_value.close.assert_called_with()        
+
+    @patch('application.server.republish_command')
+    def test_start_republish_nosync_ok(self, mock_republish_command):
+        mock_republish_command.return_value = "Republish started"
+        assert server.start_republish({'a':'thing'}, False) == "New republish job submitted"
+        mock_republish_command.assert_called_with({'target': 'start', 'kwargs': {'a':'thing'}})
+        
+    @patch('application.server.republish_command')
+    def test_start_republish_nosync_nook(self, mock_republish_command):
+        mock_republish_command.return_value = "Something else happened"
+        assert server.start_republish({'a':'thing'}, False) == "Something else happened"
+        mock_republish_command.assert_called_with({'target': 'start', 'kwargs': {'a':'thing'}})
+        
+    @patch('application.server.republish_command')
+    def test_start_republish_sync_ok(self, mock_republish_command):
+        mock_republish_command.return_value = "Republish complete"
+        assert server.start_republish({'a':'thing'}, True) == "Republish complete"
+        mock_republish_command.assert_called_with({'target': 'sync_start', 'kwargs': {'a':'thing'}})
+        
+    @patch('application.server.republish_command')
+    def test_start_republish_sync_nook(self, mock_republish_command):
+        mock_republish_command.return_value = "Something else happened"
+        with pytest.raises(Exception) as exc:
+            assert server.start_republish({'a':'thing'}, True) == "Something else happened"
+        mock_republish_command.assert_called_with({'target': 'sync_start', 'kwargs': {'a':'thing'}})
+
+    @patch('application.server.republish_command')
+    def test_republish_progress_true(self, mock_republish_command):
+        mock_republish_command.return_value = {'is_running': True, 'other': 'stuff' }
+        resp = self.app.get('/republish/progress')
+        assert json.loads(resp.get_data().decode("UTF8")) == {"is_running": True, "republish_started": "true", "other": "stuff"}
+        mock_republish_command.assert_called_with({'target': 'progress'})
+    
+    @patch('application.server.republish_command')
+    def test_republish_progress_false(self, mock_republish_command):
+        mock_republish_command.return_value = {'is_running': False, 'other': 'stuff' }
+        resp = self.app.get('/republish/progress')
+        assert json.loads(resp.get_data().decode("UTF8")) == {"is_running": False, "republish_started": "false", "other": "stuff"}
+        mock_republish_command.assert_called_with({'target': 'progress'})
+
+    @patch('application.server.republish_command')
+    def test_resume_republish_started(self, mock_republish_command):
+        mock_republish_command.return_value = "Started"
+        resp = self.app.get('/republish/resume')
+        assert resp.get_data() == b'republishing has been resumed'
+        mock_republish_command.assert_called_with({'target': 'resume'})
+
+    @patch('application.server.republish_command')
+    def test_resume_republish_nothing(self, mock_republish_command):
+        mock_republish_command.return_value = "Nothing to resume"
+        resp = self.app.get('/republish/resume')
+        assert resp.get_data() == b'Republishing cannot resume as no job in progress'
+        mock_republish_command.assert_called_with({'target': 'resume'})
+
+    @patch('application.server.republish_command')
+    def test_resume_republish_other(self, mock_republish_command):
+        mock_republish_command.return_value = "Rhubarb"
+        resp = self.app.get('/republish/resume')
+        assert resp.get_data() == b'Rhubarb'
+        mock_republish_command.assert_called_with({'target': 'resume'})
+
+    @patch('application.server.republish_command')
+    def test_abort_republish_ok(self, mock_republish_command):
+        mock_republish_command.return_value = "Reset"
+        resp = self.app.get('/republish/abort')
+        assert resp.get_data() == b'aborted republishing from System of Record'
+        mock_republish_command.assert_called_with({'target': 'reset'})
+
+    @patch('application.server.republish_command')
+    def test_abort_republish_other(self, mock_republish_command):
+        mock_republish_command.return_value = "Custard"
+        resp = self.app.get('/republish/abort')
+        assert resp.get_data() == b'Custard'
+        mock_republish_command.assert_called_with({'target': 'reset'})
+
+    @patch('application.server.republish_command')
+    def test_pause_republish_ok(self, mock_republish_command):
+        mock_republish_command.return_value = "Republish stopped"
+        resp = self.app.get('/republish/pause')
+        assert resp.get_data() == b'paused republishing from System of Record and will re-start on the resume command'
+        mock_republish_command.assert_called_with({'target': 'stop'})
+
+    @patch('application.server.republish_command')
+    def test_pause_republish_other(self, mock_republish_command):
+        mock_republish_command.return_value = "Rumplestiltskin"
+        resp = self.app.get('/republish/pause')
+        assert resp.get_data() == b'Rumplestiltskin'
+        mock_republish_command.assert_called_with({'target': 'stop'})
+
+    @patch('application.server.republish_command')
+    def test_pause_republish_running(self, mock_republish_command):
+        mock_republish_command.return_value = True
+        resp = self.app.get('/republish/everything/status')
+        assert resp.get_data() == b'running'
+        mock_republish_command.assert_called_with({'target': 'running'})
+        
+    @patch('application.server.republish_command')
+    def test_pause_republish_notrunning(self, mock_republish_command):
+        mock_republish_command.return_value = False
+        resp = self.app.get('/republish/everything/status')
+        assert resp.get_data() == b'not running'
+        mock_republish_command.assert_called_with({'target': 'running'})
+        
+    @patch('application.server.start_republish')
+    def test_republish_everything_with_from_and_to_params(self, mock_start_republish):
+        mock_start_republish.return_value = "New republish job submitted"
+        resp = self.app.get('/republish/everything/2015-11-11T13:42:50.840623/2016-11-11T13:42:50.840623')
+        assert resp.get_data() == b'New republish job submitted'
+        mock_start_republish.assert_called_with({'start_date': '2015-11-11 13:42:50.840623', 'end_date': '2016-11-11 13:42:50.840623'})
+        
+    @patch('application.server.start_republish')
+    def test_republish_everything_with_from_param(self, mock_start_republish):
+        mock_start_republish.return_value = "New republish job submitted"
+        resp = self.app.get('/republish/everything/2015-11-11T13:42:50.840623')
+        assert resp.get_data() == b'New republish job submitted'
+        mock_start_republish.assert_called_with({'start_date': '2015-11-11 13:42:50.840623'})
+        
+    @patch('application.server.start_republish')
+    def test_republish_everything_without_params(self, mock_start_republish):
+        mock_start_republish.return_value = "New republish job submitted"
+        resp = self.app.get('/republish/everything')
+        assert resp.get_data() == b'New republish job submitted'
+        mock_start_republish.assert_called_with()
+        
+    @patch('application.server.start_republish')
+    def test_republish_multiok(self, mock_start_republish):
+        json = '{"titles": [ '
+        json += '{"title_number":"A_TITLE1", "all_versions": true}, '
+        json += '{"title_number":"A_TITLE2", "application_reference": "A_ABR2"}, '
+        json += '{"title_number":"A_TITLE3", "application_reference": "A_ABR3", "geometry_application_reference": "A_GEO_ABR3"}, '
+        json += '{"title_number":"A_TITLE4"}'
+        json += ' ] }'
+        resp = self.app.post('/republish', data=json, headers={'content-Type': 'application/json'})
+        assert resp.get_data() == b'No errors.  Number of titles in JSON: 4'
+        calls = []
+        calls.append(call({'title_number': 'A_TITLE1'}, True))
+        calls.append(call({'title_number': 'A_TITLE2', 'application_reference': 'A_ABR2'}, True))
+        calls.append(call({'title_number': 'A_TITLE3', 'geometry_application_reference': 'A_GEO_ABR3', 'application_reference': 'A_ABR3'}, True))
+        calls.append(call({'title_number': 'A_TITLE4', 'newest_only': True}, True))
+        mock_start_republish.assert_has_calls(calls)
+        
+    @patch('application.server.start_republish')
+    def test_republish_multi_except(self, mock_start_republish):
+        mock_start_republish.side_effect = [ '', '', Exception("Something went wrong"), '']
+        json = '{"titles": [ '
+        json += '{"title_number":"A_TITLE1", "all_versions": true}, '
+        json += '{"title_number":"A_TITLE2", "application_reference": "A_ABR2"}, '
+        json += '{"title_number":"A_TITLE3", "application_reference": "A_ABR3", "geometry_application_reference": "A_GEO_ABR3"}, '
+        json += '{"title_number":"A_TITLE4"}'
+        json += ' ] }'
+        resp = self.app.post('/republish', data=json, headers={'content-Type': 'application/json'})
+        assert resp.get_data() == b'Completed republish.  4 titles in JSON. Number of errors: 1'
+        calls = []
+        calls.append(call({'title_number': 'A_TITLE1'}, True))
+        calls.append(call({'title_number': 'A_TITLE2', 'application_reference': 'A_ABR2'}, True))
+        calls.append(call({'title_number': 'A_TITLE3', 'geometry_application_reference': 'A_GEO_ABR3', 'application_reference': 'A_ABR3'}, True))
+        calls.append(call({'title_number': 'A_TITLE4', 'newest_only': True}, True))
+        mock_start_republish.assert_has_calls(calls)
