@@ -1,11 +1,13 @@
 #!/bin/bash
 
-release=$1
+LAST_RELEASE=$1
+RELEASE=$2
+ITERATION=$3
 
 #return merge info from git since the last release
-text=$(git log develop $release..HEAD --pretty=format:"- %cd - %s%b%n" --merges --simplify-merges --date="short")
+text=$(git log $LAST_RELEASE..HEAD --pretty=format:"- %cd - %s%b%n" --merges --simplify-merges --date="short")
 
-slug_release="${release//./_}"
+slug_release="${RELEASE//./_}"
 
 #if we have merge info create a release note
 if [ "$text" != "" ]; then
@@ -15,15 +17,15 @@ if [ "$text" != "" ]; then
 
     #create the release note file and slug name
     cd system-of-record.wiki
-    md_file_name="$slug_release""_system_of_record.markdown"
-    slug="$slug_release""_release_note_system_of_record"
+    slug="$slug_release""_""$ITERATION""_release_note_system_of_record"
+    md_file_name="$slug"".markdown"
 
     #create the release note markdown file
     echo "$text" >> "$md_file_name"
 
     #add the new release link to the release page
     echo "" >> home.markdown
-    echo "["$release"]("$slug")" >> home.markdown
+    echo "["Release - ""$RELEASE"" Iteration - ""$ITERATION"]("$slug")" >> home.markdown
 
     #add, commit and push the wiki
     git add .
