@@ -138,7 +138,7 @@ class RepublisherTest(unittest.TestCase):
         mock_db_session.execute.return_value.__iter__ = Mock(return_value=iter([{ 'id_start': 14, 'id_end': 14 }, { 'id_start': 10, 'id_end': 10 }]))
         mock_res = mock_db_session.execute.return_value.rowcount = 1
         Republisher().populate_queue_ids('A_TITLE', 'A_REFERENCE', 'A_GEO_REFERENCE', 'A_START_DATE', 'A_END_DATE', True, 100)
-        mock_db_session.execute.assert_called_with("SELECT id as id_start, id as id_end FROM records WHERE 1=1 AND (record->'data'->>'title_number')::text = :title_number AND (record->'data'->>'application_reference')::text = :application_reference AND (record->'data'->>'geometry_application_reference')::text = :geometry_application_reference AND created_date > :start_date AND created_date < :end_date ORDER BY id DESC LIMIT 1 ",
+        mock_db_session.execute.assert_called_with("SELECT id as id_start, id as id_end FROM records WHERE 1=1 AND (record->'data'->>'title_number')::text = :title_number AND (record->'data'->>'application_reference')::text = :application_reference AND (record->'data'->>'geometry_application_reference')::text = :geometry_application_reference AND created_date >= :start_date AND created_date <= :end_date ORDER BY id DESC LIMIT 1 ",
                                                    {'start_date': 'A_START_DATE', 'application_reference': 'A_REFERENCE', 'end_date': 'A_END_DATE',
                                                     'geometry_application_reference': 'A_GEO_REFERENCE', 'title_number': 'A_TITLE'})
         mock_db_session.remove.assert_called_with()
@@ -156,7 +156,7 @@ class RepublisherTest(unittest.TestCase):
         mock_db_session.execute.return_value.__iter__ = Mock(return_value=iter([{ 'id_start': 14, 'id_end': 200 }]))
         mock_res = mock_db_session.execute.return_value.rowcount = 1
         Republisher().populate_queue_ids(None, None, None, 'A_START_DATE', 'A_END_DATE', False, 123)
-        mock_db_session.execute.assert_called_with('SELECT min(id) as id_start, max(id) as id_end FROM records WHERE 1=1 AND created_date > :start_date AND created_date < :end_date ',
+        mock_db_session.execute.assert_called_with('SELECT min(id) as id_start, max(id) as id_end FROM records WHERE 1=1 AND created_date >= :start_date AND created_date <= :end_date ',
                                                    {'start_date': 'A_START_DATE', 'end_date': 'A_END_DATE'})
         mock_db_session.remove.assert_called_with()
         mock_send_messages.assert_has_calls([ call(14, 200, 123, {'application_reference': None, 'start_date': 'A_START_DATE',
@@ -171,7 +171,7 @@ class RepublisherTest(unittest.TestCase):
         mock_res = mock_db_session.execute.return_value.rowcount = 1
         with pytest.raises(Exception) as exc:
             Republisher().populate_queue_ids(None, None, None, 'A_START_DATE', 'A_END_DATE', False, 123)
-        mock_db_session.execute.assert_called_with('SELECT min(id) as id_start, max(id) as id_end FROM records WHERE 1=1 AND created_date > :start_date AND created_date < :end_date ',
+        mock_db_session.execute.assert_called_with('SELECT min(id) as id_start, max(id) as id_end FROM records WHERE 1=1 AND created_date >= :start_date AND created_date <= :end_date ',
                                                    {'start_date': 'A_START_DATE', 'end_date': 'A_END_DATE'})
         mock_db_session.remove.assert_called_with()
  
@@ -182,7 +182,7 @@ class RepublisherTest(unittest.TestCase):
         mock_res = mock_db_session.execute.return_value.rowcount = 0
         with pytest.raises(Exception) as exc:
             Republisher().populate_queue_ids(None, None, None, 'A_START_DATE', 'A_END_DATE', False, 123)
-        mock_db_session.execute.assert_called_with('SELECT min(id) as id_start, max(id) as id_end FROM records WHERE 1=1 AND created_date > :start_date AND created_date < :end_date ',
+        mock_db_session.execute.assert_called_with('SELECT min(id) as id_start, max(id) as id_end FROM records WHERE 1=1 AND created_date >= :start_date AND created_date <= :end_date ',
                                                    {'start_date': 'A_START_DATE', 'end_date': 'A_END_DATE'})
         mock_db_session.remove.assert_called_with()
         
