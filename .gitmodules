@@ -1,6 +1,6 @@
 [submodule "python_logging"]
 	path = python_logging
-	url = https://github.com/LandRegistry/python_logging.git
+	url = git@git.lr.net:register-migration/python_logging.git
 [submodule "logger"]
 	path = logger
 	url = ../python_logging
