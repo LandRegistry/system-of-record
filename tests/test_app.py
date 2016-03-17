@@ -1,18 +1,23 @@
 import unittest
 from unittest.mock import patch, Mock, PropertyMock, call
 from application import server
-from application.server import app,db, publish_json_to_queue, remove_username_password
+from application.server import app,db, publish_json_to_queue, remove_username_password, make_log_msg
 import os
 import mock
 from sqlalchemy.exc import IntegrityError
 import time
-from python_logging.logging_utils import log_dir, linux_user
 import json
 from testfixtures import LogCapture
 import pytest
+import logging
+import os.path
+import pwd
 
 CORRECT_TEST_TITLE = '{"sig":"some_signed_data","data":{"title_number": "DN1"}}'
 INCORRECT_TEST_TITLE = '{"missing closing speech marks :"some_signed_data","data":{"title_number": "DN1"}}'
+
+# Set up root logger
+logging.basicConfig(format='%(levelname)s %(asctime)s [SystemOfRecord] Message: %(message)s', level=logging.INFO, datefmt='%d.%m.%y %I:%M:%S %p')
 
 class TestException(Exception):
     pass
@@ -94,42 +99,20 @@ class TestSequenceFunctions(unittest.TestCase):
     def do_nothing(self, *args):
         pass
 
+    @mock.patch('application.server.linux_user')
+    def test_make_log_message_with_title(self, mock_return):
+        mock_return.return_value = 'user'
+        self.assertEqual(make_log_msg('test message', 'DN1'), 'test message, Raised by: user, Title Number: DN1')
 
-    def test_logging_writes_to_debug_log(self):
-        test_timestamp = time.time()
-        app.logger.debug(test_timestamp)
-        log_directory = log_dir('debug')
-        f = open(log_directory, 'r')
-        file_content = f.read()
-        self.assertTrue(str(test_timestamp) in file_content)
+    @mock.patch('application.server.linux_user')
+    def test_make_log_message_without_title(self, mock_return):
+        mock_return.return_value = 'user'
+        self.assertEqual(make_log_msg('test message', ''), 'test message, Raised by: user')
 
-
-    def test_logging_writes_to_error_log(self):
-        test_timestamp = time.time()
-        app.logger.error(test_timestamp)
-        log_directory = log_dir('error')
-        f = open(log_directory, 'r')
-        file_content = f.read()
-        self.assertTrue(str(test_timestamp) in file_content)
-
-
-    def test_logging_writes_audits(self):
-        test_timestamp = time.time()
-        app.logger.audit(test_timestamp)
-        log_directory = log_dir('error')
-        f = open(log_directory, 'r')
-        file_content = f.read()
-        self.assertTrue(str(test_timestamp) in file_content)
-
-
-    def test_info_logging_writes_to_debug_log(self):
-        test_timestamp = time.time()
-        app.logger.info(test_timestamp)
-        log_directory = log_dir('debug')
-        f = open(log_directory, 'r')
-        file_content = f.read()
-        self.assertTrue(str(test_timestamp) in file_content)
-
+    @patch('application.server.pwd.getpwuid')
+    def test_make_log_message_with_user_exception(self, mock_return):
+        mock_return.side_effect = [ Exception('test') ]
+        self.assertEqual(make_log_msg('test message', ''), 'test message, Raised by: failed to get user: test')
 
     def test_remove_username_password(self):
         self.assertEqual(remove_username_password('aprotocol://ausername:apassword@localhost:9876/'), 'aprotocol://localhost:9876/')

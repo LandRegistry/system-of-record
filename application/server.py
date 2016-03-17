@@ -143,7 +143,7 @@ def republish_everything_with_from_and_to_params(date_time_from, date_time_to):
     # Date required in format of "2015-11-11T13:42:50.840623", Time separator T is removed with REGEX.
     date_time_from = re.sub('[T]', ' ', date_time_from)
     date_time_to = re.sub('[T]', ' ', date_time_to)
-    logging.info( make_log_msg( 'Starting date range republish from %s to %s' % date_time_from, date_time_to  ) )
+    logging.info( make_log_msg( 'Starting date range republish from %s to %s' % (date_time_from, date_time_to)  ) )
     return start_republish({ 'start_date': date_time_from, 'end_date': date_time_to })
 
 @app.route("/republish/everything/status")
@@ -230,11 +230,11 @@ def republish_connection():
         return republish_socket
     except ConnectionRefusedError:
         logging.info( make_log_msg( 'Republisher not running, starting...' ) )
-        mp = multiprocessing.Process(target=Republisher().republish_process, args=[app.config['SQLALCHEMY_DATABASE_URI'],
-                                                                              app.config['RABBIT_ENDPOINT'],
-                                                                              app.config['REPUBLISH_QUEUE'],
-                                                                              app.config['RABBIT_QUEUE'],
-                                                                              app.config['RABBIT_ROUTING_KEY']])
+        mp = multiprocessing.Process(target=Republisher().republish_process, args=[ app.config['SQLALCHEMY_DATABASE_URI'],
+                                                                                    app.config['RABBIT_ENDPOINT'],
+                                                                                    app.config['REPUBLISH_QUEUE'],
+                                                                                    app.config['RABBIT_QUEUE'],
+                                                                                    app.config['RABBIT_ROUTING_KEY']])
         mp.daemon = True
         mp.start()
         for _x in range(10):
@@ -245,7 +245,7 @@ def republish_connection():
                 logging.info( make_log_msg( 'Republisher connection refused, retrying...' ) )
                 time.sleep(1)
         raise
-    
+
 
 def make_log_msg(message, title_number=''):
     if title_number == '':
