@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch, Mock, PropertyMock, call
 from application.republish_all_multi import Republisher
 from kombu import Queue
+import logging
 
 class RepublisherTest(unittest.TestCase):
     
@@ -404,3 +405,18 @@ class RepublisherTest(unittest.TestCase):
     def test_stop_republish_not_running(self, mock_stop_event, mock_is_running):
         assert Republisher().stop_republish() == "Republish stopped"
         mock_stop_event.set.assert_not_called()
+
+    @patch.object(Republisher, 'linux_user', return_value='user')
+    def test_make_log_message_with_title(self, mock_return):
+        mock_return.return_value = 'user'
+        self.assertEqual(Republisher().make_log_msg('test message', 'DN1'), 'test message, Raised by: user, Title Number: DN1')
+
+    @patch.object(Republisher, 'linux_user', return_value='user')
+    def test_make_log_message_without_title(self, mock_return):
+        mock_return.return_value = 'user'
+        self.assertEqual(Republisher().make_log_msg('test message', ''), 'test message, Raised by: user')
+
+    @patch('application.server.pwd.getpwuid')
+    def test_make_log_message_user_exception(self, mock_return):
+        mock_return.side_effect = [ Exception('test') ]
+        self.assertEqual(Republisher().make_log_msg('test message', ''), 'test message, Raised by: failed to get user: test')
