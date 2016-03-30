@@ -41,8 +41,10 @@ In virtual machine
 ##How to run the tester service
 
 ```
-cd /vagrant
-./run-tester.sh -d
+cd srv/system-of-record
+workon system-of-record
+python run_tester.py
+
 ```
 ###To count the rows on postgres
 ```
